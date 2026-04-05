@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__ide__getDiagnostics",
+      "Bash(npm run:*)",
+      "Bash(npx tsx:*)",
+      "Bash(lsof -ti:4000)",
+      "Bash(xargs kill:*)",
+      "Bash(lsof -ti:5173)",
+      "Bash(npm install:*)"
+    ]
+  }
+}
