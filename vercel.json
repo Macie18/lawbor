@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/policies/:path*",
+      "destination": "/policies/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

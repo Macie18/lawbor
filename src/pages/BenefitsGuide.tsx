@@ -110,7 +110,7 @@ export default function BenefitsGuide() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/policies/${cityId}.md`);
+      const response = await fetch(`/policies/${cityId}.md?t=${Date.now()}`);
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error('该地区政策文件尚未上线');

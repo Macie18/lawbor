@@ -14,9 +14,9 @@ app.get('/health', (_req, res) => {
 })
 
 app.post('/v1/chat', async (req, res) => {
-  const key = process.env.DEEPSEEK_API_KEY?.trim()
+  const key = process.env.VITE_DEEPSEEK_API_KEY?.trim()
   if (!key) {
-    res.status(503).json({ error: '未配置 DEEPSEEK_API_KEY，请在 laboris-api/.env 中填写' })
+    res.status(503).json({ error: '未配置 VITE_DEEPSEEK_API_KEY，请在 laboris-api/.env 中填写' })
     return
   }
 

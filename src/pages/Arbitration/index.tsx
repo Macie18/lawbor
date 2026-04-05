@@ -66,8 +66,17 @@ export default function Arbitration() {
     const docInfo = DOCUMENT_MAPPING[selectedCase as keyof typeof DOCUMENT_MAPPING];
     message.loading(`正在准备下载：${docInfo.name}...`, 1);
     
-    // Direct download via API route is more reliable for binary files
-    window.location.href = `/api/download/${selectedCase}`;
+    // 修复方法：直接指向 public/templates 下的文件路径
+    // 注意：在打包后的环境下，路径不需要包含 "public"
+    const fileUrl = `/templates/${docInfo.file}`;
+  
+    // 创建一个隐藏的 a 标签进行下载，这样可以自定义下载后的文件名
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = docInfo.originalName; // 使用原始中文文件名
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
