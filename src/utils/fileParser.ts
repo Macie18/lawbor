@@ -12,9 +12,9 @@ export async function extractTextFromFile(file: File): Promise<string> {
   const fileName = file.name.toLowerCase();
   const fileSize = file.size;
 
-  // 检查文件大小（最大 10MB）
-  if (fileSize > 10 * 1024 * 1024) {
-    throw new Error('文件过大，请选择小于 10MB 的文件');
+  // 检查文件大小（最大 20MB）
+  if (fileSize > 20 * 1024 * 1024) {
+    throw new Error('文件过大，请选择小于 20MB 的文件');
   }
 
   if (fileName.endsWith('.pdf')) {
