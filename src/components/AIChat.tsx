@@ -1,24 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, X, Send, Paperclip, ShieldCheck, Loader2, MapPin, ExternalLink, Star } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { MessageSquare, X, Send, ShieldCheck, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../lib/utils';
 import { useTranslation } from '../contexts/TranslationContext';
-
-const genAI = new GoogleGenAI({ apiKey: (import.meta as any).env?.VITE_GEMINI_API_KEY || '' });
+import { llmService, LLMMessage } from '../services/llmService';
 
 interface Message {
   role: 'user' | 'model' | 'system';
   text: string;
-  cards?: Array<{
-    title: string;
-    uri: string;
-    rating?: number;
-    address?: string;
-  }>;
-  isLocationRequest?: boolean;
 }
 
 export default function AIChat() {
@@ -27,7 +18,6 @@ export default function AIChat() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,33 +30,6 @@ export default function AIChat() {
     }
   }, [messages, loading]);
 
-  const requestLocation = () => {
-    if (!navigator.geolocation) {
-      setMessages(prev => [...prev, { role: 'model', text: t('chat.locationError') }]);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const newLocation = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        };
-        setLocation(newLocation);
-        setMessages(prev => [
-          ...prev, 
-          { role: 'system', text: language === 'zh' ? '已获取位置权限' : 'Location permission granted' }
-        ]);
-        // After getting location, we could automatically re-trigger the search
-        // but for simplicity, we'll let the user ask again or just use it for the next message
-      },
-      (error) => {
-        console.error('Location Error:', error);
-        setMessages(prev => [...prev, { role: 'model', text: t('chat.locationError') }]);
-      }
-    );
-  };
-
   const handleSend = async (overrideInput?: string) => {
     const userMessage = overrideInput || input.trim();
     if (!userMessage && !overrideInput) return;
@@ -76,71 +39,32 @@ export default function AIChat() {
     setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
     setLoading(true);
 
-    // Detect intent for nearby legal institutions
-    const locationKeywords = ['附近', '法律援助', '法院', '律所', '机构', 'nearby', 'legal aid', 'court', 'law firm', 'institution'];
-    const hasLocationIntent = locationKeywords.some(kw => userMessage.toLowerCase().includes(kw));
-
-    if (hasLocationIntent && !location) {
-      setLoading(false);
-      setMessages(prev => [...prev, { 
-        role: 'model', 
-        text: t('chat.locationRequest'),
-        isLocationRequest: true 
-      }]);
-      return;
-    }
-
     try {
-      const model = 'gemini-3-flash-preview';
-      const systemPrompt = language === 'zh' 
-        ? "你是一个专业的中国劳动法律助手，名叫 Lawbor。请基于中国劳动法提供专业、准确、客观的建议。如果用户想找附近的法律机构，请使用 Google Maps 工具。如果问题涉及法律程序，请提醒用户咨询专业律师。"
-        : "You are a professional Chinese labor law assistant named Lawbor. Please provide professional, accurate, and objective advice based on Chinese labor law. If the user wants to find nearby legal institutions, use the Google Maps tool. If the question involves legal procedures, please remind the user to consult a professional lawyer.";
-      
-      const config: any = {
-        tools: hasLocationIntent ? [{ googleMaps: {} }] : [],
-      };
+      const systemPrompt = language === 'zh'
+        ? "你是一个专业的中国劳动法律助手，名叫 Lawbor。请基于中国劳动法提供专业、准确、客观的建议。回答要简洁、有帮助。"
+        : "You are a professional Chinese labor law assistant named Lawbor. Please provide professional, accurate, and objective advice based on Chinese labor law. Keep your answers concise and helpful.";
 
-      if (hasLocationIntent && location) {
-        config.toolConfig = {
-          retrievalConfig: {
-            latLng: {
-              latitude: location.lat,
-              longitude: location.lng
-            }
-          }
-        };
-      }
+      const historyMessages: LLMMessage[] = [
+        { role: 'system', content: systemPrompt },
+        ...messages.filter(m => m.role !== 'system').map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.text
+        })),
+        { role: 'user', content: userMessage }
+      ];
 
-      const result = await genAI.models.generateContent({
-        model,
-        contents: [
-          { role: 'user', parts: [{ text: `${systemPrompt} 用户问题：${userMessage}` }] },
-        ],
-        config
+      const responseText = await llmService.generateResponse(historyMessages, {
+        temperature: 50,
+        role: 'lawyer',
+        scenario: 'consultation'
       });
 
-      const responseText = result.text || (language === 'zh' ? '抱歉，我暂时无法回答这个问题。' : 'Sorry, I cannot answer this question at the moment.');
-      
-      // Extract grounding chunks for cards
-      const cards: Message['cards'] = [];
-      const groundingChunks = result.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (groundingChunks) {
-        groundingChunks.forEach((chunk: any) => {
-          if (chunk.maps) {
-            cards.push({
-              title: chunk.maps.title,
-              uri: chunk.maps.uri,
-              address: chunk.maps.address,
-              rating: chunk.maps.rating
-            });
-          }
-        });
-      }
-
-      setMessages(prev => [...prev, { role: 'model', text: responseText, cards: cards.length > 0 ? cards : undefined }]);
+      setMessages(prev => [...prev, { role: 'model', text: responseText }]);
     } catch (error) {
       console.error('AI Chat Error:', error);
-      const errorMsg = language === 'zh' ? '抱歉，连接助手时出现错误，请稍后再试。' : 'Sorry, an error occurred while connecting to the assistant. Please try again later.';
+      const errorMsg = language === 'zh'
+        ? '抱歉，连接助手时出现错误，请确保已配置 DeepSeek API Key。'
+        : 'Sorry, an error occurred. Please ensure DeepSeek API Key is configured.';
       setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);
     } finally {
       setLoading(false);
@@ -196,59 +120,14 @@ export default function AIChat() {
                     <div
                       className={cn(
                         "rounded-2xl px-4 py-2 text-sm",
-                        msg.role === 'user' 
-                          ? "bg-blue-600 text-white rounded-tr-none" 
+                        msg.role === 'user'
+                          ? "bg-blue-600 text-white rounded-tr-none"
                           : "bg-slate-100 text-slate-800 rounded-tl-none"
                       )}
                     >
                       <div className="prose prose-sm prose-slate max-w-none dark:prose-invert">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
                       </div>
-
-                      {msg.isLocationRequest && (
-                        <button
-                          onClick={requestLocation}
-                          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-700"
-                        >
-                          <MapPin className="h-3 w-3" />
-                          {t('chat.locationAllow')}
-                        </button>
-                      )}
-
-                      {msg.cards && (
-                        <div className="mt-4 grid gap-3">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            {t('chat.nearbyResults')}
-                          </p>
-                          {msg.cards.map((card, idx) => (
-                            <a
-                              key={idx}
-                              href={card.uri}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="group flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-3 transition-all hover:border-blue-400 hover:shadow-md"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 line-clamp-1">
-                                  {card.title}
-                                </h4>
-                                <ExternalLink className="h-3 w-3 shrink-0 text-slate-300 group-hover:text-blue-600" />
-                              </div>
-                              {card.rating && (
-                                <div className="flex items-center gap-1">
-                                  <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-                                  <span className="text-[10px] font-medium text-slate-500">{card.rating}</span>
-                                </div>
-                              )}
-                              {card.address && (
-                                <p className="text-[10px] text-slate-400 line-clamp-2">
-                                  {card.address}
-                                </p>
-                              )}
-                            </a>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>

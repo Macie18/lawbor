@@ -1,12 +1,8 @@
-import * as pdfjs from 'pdfjs-dist';
 import mammoth from 'mammoth';
-
-// 配置 PDF.js worker - 使用完整的 CDN URL
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 /**
  * 从文件中提取文本内容
- * 支持 PDF 和 DOCX 格式
+ * 支持 PDF（通过 PDF.js CDN）和 DOCX 格式
  */
 export async function extractTextFromFile(file: File): Promise<string> {
   const fileName = file.name.toLowerCase();
@@ -33,15 +29,20 @@ export async function extractTextFromFile(file: File): Promise<string> {
 }
 
 /**
- * 从 PDF 文件提取文本
+ * 从 PDF 文件提取文本 - 使用动态加载
  */
 async function extractTextFromPDF(file: File): Promise<string> {
   try {
+    // 动态导入 pdfjs-dist
+    const pdfjsLib = await import('pdfjs-dist');
+
+    // 设置 worker - 使用版本化的 CDN
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs`;
+
     const arrayBuffer = await file.arrayBuffer();
     console.log('[FileParser] PDF arrayBuffer 长度:', arrayBuffer.byteLength);
 
-    // 加载 PDF 文档
-    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
 
     console.log('[FileParser] PDF 页数:', pdf.numPages);
@@ -64,23 +65,22 @@ async function extractTextFromPDF(file: File): Promise<string> {
     const fullText = textParts.join('\n\n');
     console.log('[FileParser] 提取的文本长度:', fullText.length);
 
-    // 如果文本为空但没有其他错误，给出更友好的提示
     if (!fullText.trim()) {
-      console.warn('[FileParser] PDF 没有提取到文字，可能是图片扫描版');
-      throw new Error('该 PDF 为扫描版图片，无法提取文字。请使用文字版 PDF 或拍照识别。');
+      console.warn('[FileParser] PDF 没有提取到文字');
+      throw new Error('该 PDF 为扫描版图片，无法提取文字。请使用文字版 PDF。');
     }
 
     return fullText;
   } catch (error) {
     console.error('[FileParser] PDF 解析详细错误:', error);
 
-    // 如果是扫描版图片，给出更明确的提示
+    // 检查是否是图片型 PDF
     const errorMsg = error instanceof Error ? error.message : String(error);
-    if (errorMsg.includes('scan') || errorMsg.includes('image') || errorMsg.includes('没有提取到文字')) {
+    if (errorMsg.includes('scan') || errorMsg.includes('image') || errorMsg.includes('No text')) {
       throw new Error('该 PDF 为扫描版图片，无法提取文字。请使用文字版 PDF。');
     }
 
-    throw new Error('PDF 文件解析失败，请确保文件不是扫描版图片');
+    throw new Error('PDF 解析出错，请确保文件是有效的 PDF 文档');
   }
 }
 
