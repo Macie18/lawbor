@@ -86,17 +86,16 @@ export class DeepSeekLLMService implements LLMService {
     this.baseUrl = baseUrl;
     this.model = model;
 
-    // 浏览器环境从 import.meta.env 获取，Node.js 从 process.env 获取
-    if (!this.apiKey) {
-      if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_DEEPSEEK_API_KEY) {
-        this.apiKey = (import.meta as any).env.VITE_DEEPSEEK_API_KEY;
-      } else if (typeof process !== 'undefined' && process.env?.VITE_DEEPSEEK_API_KEY) {
-        this.apiKey = process.env.VITE_DEEPSEEK_API_KEY;
-      }
+    // 浏览器环境从 import.meta.env 获取
+    const env = (import.meta as any).env;
+    if (!this.apiKey && env?.VITE_DEEPSEEK_API_KEY) {
+      this.apiKey = env.VITE_DEEPSEEK_API_KEY;
     }
 
     if (!this.apiKey) {
-      console.warn('[LLM] 未配置 VITE_DEEPSEEK_API_KEY，将使用模拟响应');
+      console.warn('[LLM] 未配置 VITE_DEEPSEEK_API_KEY，将使用模拟响应（仅用于演示）');
+    } else {
+      console.log('[LLM] DeepSeek API Key 已加载');
     }
   }
 

@@ -1,45 +1,335 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Upload, FileText, AlertTriangle, CheckCircle, Info, Loader2 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import {
+  Upload,
+  FileText,
+  AlertTriangle,
+  Info,
+  Loader2,
+  CheckCircle,
+} from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
+import { runContractReview } from '../services/contractReviewService';
+import RiskCard from '../components/RiskCard';
+import type {
+  ContractReviewResult,
+  RiskLevel,
+  WorkflowStep,
+  WorkflowProgress,
+} from '../types/contractReview';
+import {
+  RiskLevelMap,
+  WORKFLOW_STEPS,
+} from '../types/contractReview';
 
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+// 过滤选项
+type FilterOption = 'all' | RiskLevel;
+
+// 进度步骤颜色映射
+const STEP_COLORS: Record<WorkflowStep, string> = {
+  idle: 'bg-slate-200',
+  extracting: 'bg-blue-500',
+  retrieving: 'bg-purple-500',
+  reviewing: 'bg-amber-500',
+  completed: 'bg-green-500',
+  error: 'bg-red-500',
+};
+
+// 过滤按钮配置
+const FILTER_OPTIONS: { key: FilterOption; label: { zh: string; en: string }; color: string }[] = [
+  { key: 'all', label: { zh: '全部', en: 'All' }, color: 'bg-slate-600 hover:bg-slate-700' },
+  { key: 'high', label: { zh: '高危', en: 'High' }, color: 'bg-red-500 hover:bg-red-600' },
+  { key: 'medium', label: { zh: '中危', en: 'Medium' }, color: 'bg-amber-500 hover:bg-amber-600' },
+  { key: 'low', label: { zh: '低危', en: 'Low' }, color: 'bg-blue-500 hover:bg-blue-600' },
+  { key: 'safe', label: { zh: '安全', en: 'Safe' }, color: 'bg-green-500 hover:bg-green-600' },
+];
 
 export default function ContractReview() {
   const { t, language } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<ContractReviewResult | null>(null);
+  const [progress, setProgress] = useState<WorkflowProgress>({
+    step: 'idle',
+    message: '',
+    progress: 0,
+  });
+  const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
+  const [streamingText, setStreamingText] = useState('');
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
+
     setFile(selectedFile);
     setLoading(true);
+    setResult(null);
+    setActiveFilter('all');
+    setStreamingText('');
+
+    const mockText = `劳动合同
+
+第一条 合同期限
+本合同为固定期限劳动合同，期限为三年，自2024年1月1日起至2026年12月31日止。
+
+第二条 试用期
+试用期六个月，试用期工资为转正后工资的70%。
+
+第三条 工作内容
+乙方同意根据甲方工作需要，从事销售代表岗位工作。甲方有权根据经营需要调整乙方的工作岗位和内容，乙方应服从安排。
+
+第四条 工作地点
+乙方工作地点为甲方指定地点，但甲方有权根据业务需要临时调动乙方到其他地点工作，乙方须无条件服从。
+
+第五条 薪酬
+甲方每月10日支付乙方上月工资。乙方基本工资为每月5000元＋销售提成。
+
+第六条 社会保险
+甲方为乙方缴纳社会保险，但试用期期间不缴纳住房公积金。
+
+第七条 竞业限制
+乙方离职后两年内不得从事与甲方业务相关的任何工作，月补偿金按当地最低工资标准支付。
+
+第八条 违约金
+如乙方提前解除本合同，需支付甲方违约金5万元。
+
+第九条 争议管辖
+因本合同发生的争议，由甲方所在地人民法院管辖。
+
+第十条 休假
+甲方根据经营情况安排乙方工作，乙方服从加班安排，加班费按基本工资的1倍计算。`;
 
     try {
-      const model = 'gemini-3-flash-preview';
-      const prompt = language === 'zh'
-        ? "你是一个专业的中国劳动法律助手。用户上传了一份劳动合同（模拟）。请列出该合同中可能存在的风险点（如：试用期过长、违约金不合理、加班费未明确等），并给出修改建议。请使用 Markdown 格式输出，包含风险等级（高、中、低）。"
-        : "You are a professional Chinese labor law assistant. The user has uploaded a labor contract (simulated). Please list the potential risk points in the contract (e.g., probation period too long, unreasonable liquidated damages, unclear overtime pay, etc.) and provide modification suggestions. Please output in Markdown format, including risk levels (High, Medium, Low).";
-      
-      const result = await genAI.models.generateContent({
-        model,
-        contents: [
-          { role: 'user', parts: [{ text: prompt }] },
-        ],
+      await runContractReview(
+        mockText,
+        (p) => {
+          setProgress(p);
+        },
+        (text) => {
+          // 流式文本回调 - 实时更新显示
+          setStreamingText(text);
+        }
+      ).then((reviewResult) => {
+        setResult(reviewResult);
       });
-
-      setResult(result.text || (language === 'zh' ? '分析失败，请重试。' : 'Analysis failed, please try again.'));
     } catch (error) {
       console.error('Contract Review Error:', error);
-      setResult(language === 'zh' ? '抱歉，分析过程中出现错误。' : 'Sorry, an error occurred during the analysis.');
+      setProgress({
+        step: 'error',
+        message: language === 'zh' ? '分析失败，请重试' : 'Analysis failed, please try again',
+        progress: 0,
+      });
     } finally {
       setLoading(false);
+      setStreamingText('');
     }
+  };
+
+  // 根据过滤条件筛选风险卡片
+  const filteredRisks = useMemo(() => {
+    if (!result) return [];
+    if (activeFilter === 'all') return result.riskAssessments;
+    return result.riskAssessments.filter((r) => r.level === activeFilter);
+  }, [result, activeFilter]);
+
+  // 渲染进度步骤条
+  const renderProgressSteps = () => {
+    const currentIndex = WORKFLOW_STEPS.findIndex((s) => s.key === progress.step);
+    const isError = progress.step === 'error';
+
+    // RAG 虚拟步骤特殊处理：如果刚完成 extracting，开始 retrieving 后又快速进入 reviewing
+    const showRetrieving = progress.step === 'retrieving' ||
+      (progress.step === 'reviewing' && progress.progress < 60);
+
+    return (
+      <div className="mb-8">
+        <div className="flex items-center justify-between relative">
+          <div className="absolute top-5 left-0 right-0 h-1 bg-slate-200 rounded-full" />
+          <div
+            className="absolute top-5 left-0 h-1 bg-blue-500 rounded-full transition-all duration-500"
+            style={{ width: `${Math.min(progress.progress, 100)}%` }}
+          />
+
+          {WORKFLOW_STEPS.map((step, index) => {
+            const isCompleted = index < currentIndex || progress.step === 'completed';
+            const isCurrent = index === currentIndex;
+            const isPending = index > currentIndex && progress.step !== 'completed';
+
+            // 跳过显示 retrieving 步骤（用于动画效果）
+            if (step.key === 'retrieving' && !showRetrieving) return null;
+
+            return (
+              <div key={step.key} className="flex flex-col items-center relative z-10">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                    isCompleted
+                      ? 'bg-green-500 text-white'
+                      : isCurrent
+                      ? `${STEP_COLORS[progress.step]} text-white animate-pulse`
+                      : isError
+                      ? 'bg-red-500 text-white'
+                      : showRetrieving && step.key === 'reviewing'
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-slate-200 text-slate-400'
+                  }`}
+                >
+                  {isCompleted ? (
+                    <CheckCircle className="h-5 w-5" />
+                  ) : isCurrent && loading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : showRetrieving && step.key === 'reviewing' ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <span className="text-sm font-bold">{index + 1}</span>
+                  )}
+                </div>
+                <span
+                  className={`text-xs mt-2 ${
+                    isCurrent ? 'text-blue-600 font-medium' : 'text-slate-400'
+                  }`}
+                >
+                  {step.label[language === 'zh' ? 'zh' : 'en']}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {progress.message && (
+          <p className="text-center text-sm text-slate-500 mt-4">{progress.message}</p>
+        )}
+      </div>
+    );
+  };
+
+  // 渲染流式文本预览（类似打字机效果）
+  const renderStreamingPreview = () => {
+    if (!streamingText) return null;
+
+    // 尝试解析当前的 JSON 片段
+    const truncated = streamingText.slice(-500); // 只显示最后500字符
+
+    return (
+      <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+        <p className="text-xs text-slate-500 mb-2">
+          {language === 'zh' ? '💭 AI 正在生成风险评估...' : '💭 AI is generating risk assessment...'}
+        </p>
+        <pre className="text-xs text-slate-600 font-mono whitespace-pre-wrap break-all max-h-32 overflow-y-auto">
+          {truncated}
+        </pre>
+        <div className="flex items-center gap-2 mt-2">
+          <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-xs text-green-600">
+            {language === 'zh' ? '流式输出中...' : 'Streaming...'}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  // 渲染整体评分卡片
+  const renderOverallScore = () => {
+    if (!result) return null;
+
+    const levelColor: Record<RiskLevel, string> = {
+      high: 'from-red-500 to-red-600',
+      medium: 'from-amber-400 to-amber-500',
+      low: 'from-blue-400 to-blue-500',
+      safe: 'from-green-400 to-green-500',
+    };
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-gradient-to-br rounded-3xl p-6 text-white mb-6"
+      >
+        <div className={`bg-gradient-to-br ${levelColor[result.overallLevel]} rounded-2xl p-6`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-white/80 text-sm mb-1">
+                {language === 'zh' ? '整体风险评估' : 'Overall Risk Assessment'}
+              </p>
+              <h3 className="text-2xl font-bold">
+                {RiskLevelMap[result.overallLevel]}
+              </h3>
+              <p className="text-white/90 mt-2">{result.summary}</p>
+            </div>
+            <div className="text-center">
+              <div className="text-5xl font-bold">{result.overallScore}</div>
+              <div className="text-white/70 text-sm">
+                {language === 'zh' ? '综合评分' : 'Score'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // 渲染风险数量统计
+  const renderStats = () => {
+    if (!result) return null;
+
+    const stats = {
+      high: result.riskAssessments.filter((r) => r.level === 'high').length,
+      medium: result.riskAssessments.filter((r) => r.level === 'medium').length,
+      low: result.riskAssessments.filter((r) => r.level === 'low').length,
+      safe: result.riskAssessments.filter((r) => r.level === 'safe').length,
+    };
+
+    return (
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        {Object.entries(stats).map(([level, count]) => (
+          <button
+            key={level}
+            onClick={() => setActiveFilter(level as FilterOption)}
+            className={`text-center p-3 rounded-xl transition-all ${
+              activeFilter === level
+                ? level === 'high'
+                  ? 'bg-red-500 text-white ring-2 ring-red-300'
+                  : level === 'medium'
+                  ? 'bg-amber-500 text-white ring-2 ring-amber-300'
+                  : level === 'low'
+                  ? 'bg-blue-500 text-white ring-2 ring-blue-300'
+                  : 'bg-green-500 text-white ring-2 ring-green-300'
+                : level === 'high'
+                ? 'bg-red-50 text-red-700 hover:bg-red-100'
+                : level === 'medium'
+                ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                : level === 'low'
+                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                : 'bg-green-50 text-green-700 hover:bg-green-100'
+            }`}
+          >
+            <div className="text-2xl font-bold">{count}</div>
+            <div className="text-xs">{RiskLevelMap[level as RiskLevel]}</div>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  // 渲染过滤按钮栏
+  const renderFilterButtons = () => {
+    return (
+      <div className="flex gap-2 mb-4">
+        {FILTER_OPTIONS.map((option) => {
+          const isActive = activeFilter === option.key;
+          return (
+            <button
+              key={option.key}
+              onClick={() => setActiveFilter(option.key)}
+              className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition-all ${
+                isActive ? option.color : 'bg-slate-300 text-slate-600 hover:bg-slate-400'
+              }`}
+            >
+              {option.label[language === 'zh' ? 'zh' : 'en']}
+            </button>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -62,7 +352,11 @@ export default function ContractReview() {
             <label htmlFor="contract-upload" className="cursor-pointer">
               <div className="mb-4 flex justify-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  <Upload className="h-8 w-8" />
+                  {loading ? (
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  ) : (
+                    <Upload className="h-8 w-8" />
+                  )}
                 </div>
               </div>
               <h3 className="mb-2 font-bold text-slate-900">{t('contract.upload')}</h3>
@@ -83,15 +377,35 @@ export default function ContractReview() {
         </div>
 
         <div className="lg:col-span-2">
-          <div className="min-h-[400px] rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="min-h-[400px] rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             {loading ? (
-              <div className="flex h-full flex-col items-center justify-center py-20">
-                <Loader2 className="mb-4 h-10 w-10 animate-spin text-blue-600" />
-                <p className="text-slate-500">{t('contract.analyzing')}</p>
+              <div className="flex flex-col items-center justify-center py-12">
+                {renderProgressSteps()}
+                {renderStreamingPreview()}
               </div>
             ) : result ? (
-              <div className="prose prose-slate max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+              <div>
+                {renderOverallScore()}
+                {renderStats()}
+                {renderFilterButtons()}
+
+                <h4 className="font-bold text-slate-800 mb-4">
+                  {language === 'zh'
+                    ? `筛选结果: ${filteredRisks.length} 项`
+                    : `Filtered: ${filteredRisks.length} items`}
+                </h4>
+
+                <div className="max-h-[500px] overflow-y-auto pr-2">
+                  {filteredRisks.length > 0 ? (
+                    filteredRisks.map((assessment, index) => (
+                      <RiskCard key={`risk-${assessment.category}-${index}`} item={assessment} index={index} />
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-slate-400">
+                      {language === 'zh' ? '没有符合条件的结果' : 'No matching results'}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex h-full flex-col items-center justify-center py-20 text-center">

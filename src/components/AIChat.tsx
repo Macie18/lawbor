@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { cn } from '../lib/utils';
 import { useTranslation } from '../contexts/TranslationContext';
 
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const genAI = new GoogleGenAI({ apiKey: (import.meta as any).env?.VITE_GEMINI_API_KEY || '' });
 
 interface Message {
   role: 'user' | 'model' | 'system';
