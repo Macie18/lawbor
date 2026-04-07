@@ -7,9 +7,11 @@ import {
   Info,
   Loader2,
   CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
 import { runContractReview } from '../services/contractReviewService';
+import { extractTextFromFile } from '../utils/fileParser';
 import RiskCard from '../components/RiskCard';
 import type {
   ContractReviewResult,
@@ -56,6 +58,7 @@ export default function ContractReview() {
   });
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
   const [streamingText, setStreamingText] = useState('');
+  const [parseError, setParseError] = useState<string | null>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -66,47 +69,26 @@ export default function ContractReview() {
     setResult(null);
     setActiveFilter('all');
     setStreamingText('');
-
-    const mockText = `劳动合同
-
-第一条 合同期限
-本合同为固定期限劳动合同，期限为三年，自2024年1月1日起至2026年12月31日止。
-
-第二条 试用期
-试用期六个月，试用期工资为转正后工资的70%。
-
-第三条 工作内容
-乙方同意根据甲方工作需要，从事销售代表岗位工作。甲方有权根据经营需要调整乙方的工作岗位和内容，乙方应服从安排。
-
-第四条 工作地点
-乙方工作地点为甲方指定地点，但甲方有权根据业务需要临时调动乙方到其他地点工作，乙方须无条件服从。
-
-第五条 薪酬
-甲方每月10日支付乙方上月工资。乙方基本工资为每月5000元＋销售提成。
-
-第六条 社会保险
-甲方为乙方缴纳社会保险，但试用期期间不缴纳住房公积金。
-
-第七条 竞业限制
-乙方离职后两年内不得从事与甲方业务相关的任何工作，月补偿金按当地最低工资标准支付。
-
-第八条 违约金
-如乙方提前解除本合同，需支付甲方违约金5万元。
-
-第九条 争议管辖
-因本合同发生的争议，由甲方所在地人民法院管辖。
-
-第十条 休假
-甲方根据经营情况安排乙方工作，乙方服从加班安排，加班费按基本工资的1倍计算。`;
+    setParseError(null);
 
     try {
+      // 第一步：解析文件提取文本
+      setProgress({
+        step: 'extracting',
+        message: '正在解析文件...',
+        progress: 5,
+      });
+
+      const fileText = await extractTextFromFile(selectedFile);
+      console.log('[ContractReview] 文件解析成功, 文本长度:', fileText.length);
+
+      // 第二步：调用 Dify API 进行审查
       await runContractReview(
-        mockText,
+        fileText,
         (p) => {
           setProgress(p);
         },
         (text) => {
-          // 流式文本回调 - 实时更新显示
           setStreamingText(text);
         }
       ).then((reviewResult) => {
@@ -114,14 +96,15 @@ export default function ContractReview() {
       });
     } catch (error) {
       console.error('Contract Review Error:', error);
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      setParseError(errorMessage);
       setProgress({
         step: 'error',
-        message: language === 'zh' ? '分析失败，请重试' : 'Analysis failed, please try again',
+        message: errorMessage,
         progress: 0,
       });
     } finally {
       setLoading(false);
-      setStreamingText('');
     }
   };
 
@@ -382,6 +365,23 @@ export default function ContractReview() {
               <div className="flex flex-col items-center justify-center py-12">
                 {renderProgressSteps()}
                 {renderStreamingPreview()}
+              </div>
+            ) : parseError ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="flex items-center gap-3 p-4 bg-red-50 text-red-700 rounded-xl mb-4">
+                  <AlertCircle className="h-6 w-6" />
+                  <div>
+                    <p className="font-medium">
+                      {language === 'zh' ? '文件解析失败' : 'File Parsing Failed'}
+                    </p>
+                    <p className="text-sm text-red-600">{parseError}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-500">
+                  {language === 'zh'
+                    ? '请确保文件是 PDF 或 Word 文档，且内容不是扫描图片'
+                    : 'Please ensure the file is a PDF or Word document with selectable text'}
+                </p>
               </div>
             ) : result ? (
               <div>
