@@ -96,11 +96,21 @@ export default function ContractReview() {
       });
     } catch (error) {
       console.error('Contract Review Error:', error);
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      setParseError(errorMessage);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[ContractReview] 错误详情:', errorMessage);
+
+      // 简短的用户友好提示
+      let userMessage = errorMessage;
+      if (errorMessage.includes('扫描版')) {
+        userMessage = '该文件为扫描版图片，无法提取文字';
+      } else if (errorMessage.includes('解析失败')) {
+        userMessage = '文件解析失败，请确保是文字版 PDF 或 Word';
+      }
+
+      setParseError(userMessage);
       setProgress({
         step: 'error',
-        message: errorMessage,
+        message: userMessage,
         progress: 0,
       });
     } finally {
