@@ -91,6 +91,7 @@ const FloatingButton = () => {
       className="fixed top-6 right-6 z-[9999]"
     >
       <button
+        onClick={() => navigate('/dashboard')}
         className="rounded-xl px-6 py-3 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl active:scale-95"
         style={{ backgroundColor: "#107191" }}
       >
