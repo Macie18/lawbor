@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Search, ChevronRight, Bookmark, Share2, HelpCircle, Sparkles } from 'lucide-react';
+import { BookOpen, Search, Bookmark, Share2, HelpCircle, Sparkles } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
 
 const categories = {
   zh: ['全部', '劳动合同', '工资福利', '工作时间', '社会保险', '劳动争议'],
-  en: ['All', 'Labor Contract', 'Salary & Benefits', 'Working Hours', 'Social Insurance', 'Labor Dispute']
+  en: ['All', 'Labor Contract', 'Salary \u0026 Benefits', 'Working Hours', 'Social Insurance', 'Labor Dispute']
 };
 
 const expertCards = {
@@ -19,7 +19,7 @@ const expertCards = {
   ],
   en: [
     { id: 'e1', category: 'Labor Contract', title: 'How long is the maximum probation period?', content: 'If the labor contract term is more than three months but less than one year, the probation period shall not exceed one month; if the term is more than one year but less than three years, the probation period shall not exceed two months; for fixed-term contracts of more than three years and open-ended contracts, the probation period shall not exceed six months.', tags: ['Probation', 'Contract Term'] },
-    { id: 'e2', category: 'Salary & Benefits', title: 'How is overtime pay calculated?', content: 'Weekday overtime: not less than 150% of salary; Weekend overtime (if no compensatory time off): not less than 200% of salary; Statutory holiday overtime: not less than 300% of salary.', tags: ['Overtime Pay', 'Salary Calculation'] },
+    { id: 'e2', category: 'Salary \u0026 Benefits', title: 'How is overtime pay calculated?', content: 'Weekday overtime: not less than 150% of salary; Weekend overtime (if no compensatory time off): not less than 200% of salary; Statutory holiday overtime: not less than 300% of salary.', tags: ['Overtime Pay', 'Salary Calculation'] },
     { id: 'e3', category: 'Working Hours', title: 'How many days of annual leave?', content: 'Cumulative work of 1-10 years: 5 days; 10-20 years: 10 days; more than 20 years: 15 days.', tags: ['Annual Leave', 'Benefits'] },
     { id: 'e4', category: 'Social Insurance', title: 'What does "Five Insurances and One Fund" include?', content: 'Five Insurances: Pension, Medical, Unemployment, Work Injury, Maternity. One Fund: Housing Provident Fund.', tags: ['Social Security', 'Provident Fund'] },
     { id: 'e5', category: 'Labor Dispute', title: 'Is there a time limit for arbitration?', content: 'The limitation period for applying for labor dispute arbitration is one year, starting from the date the party knows or should have known that their rights were infringed.', tags: ['Arbitration', 'Limitation'] },
@@ -31,13 +31,13 @@ const flashcards = {
   zh: [
     { id: 1, category: '社会保险', question: "什么是五险一金", answer: "五险一金是职场法定保障：五险指养老、医疗、失业、工伤、生育保险；一金是住房公积金，由单位和个人按规定共同缴费。" },
     { id: 2, category: '工资福利', question: "HR说的总包一般包括什么？", answer: "指年度税前总收入，常规包含基本工资、绩效奖金、年终奖 / 十三薪、各类固定补贴；部分企业会将签约奖、人才补贴、折合福利计入，不含公司承担的社保公积金部分。" },
-    { id: 3, category: '工资福利', question: "HR说的“十三薪”是什么意思？", answer: "年底多发 1 个月基本工资，大多年底随年终奖发放。" },
+    { id: 3, category: '工资福利', question: "HR说的「十三薪」是什么意思？", answer: "年底多发 1 个月基本工资，大多年底随年终奖发放。" },
     { id: 4, category: '劳动争议', question: "经济补偿金 N、N+1 是什么意思？", answer: "N 按工作年限算，每满 1 年给 1 个月工资；N+1 是额外多给 1 个月代通知金，多用于公司合法裁员未提前 30 天通知的情况。" },
     { id: 5, category: '劳动合同', question: "竞业限制是什么？", answer: "离职后一段时间内不能去竞品公司上班、泄露公司机密，公司要按月给补偿，没给补偿员工可不受限制。" },
     { id: 6, category: '劳动合同', question: "没签劳动合同怎么办？", answer: "入职超 1 个月不满 1 年没签合同，公司要给双倍工资，满 1 年没签，直接视为签订无固定期限劳动合同。" },
     { id: 7, category: '社会保险', question: "社保可以自愿不交、折现发工资吗？", answer: "不可以，缴纳社保是法律强制义务，私下约定不交社保、现金补贴均无效，还涉嫌违法。" },
     { id: 8, category: '劳动合同', question: "什么是试用期？", answer: "是劳动合同中约定的，用人单位与劳动者相互考察的期限，合同期限不同试用期上限不同，同一单位与同一劳动者只能约定一次试用期。" },
-    { id: 9, category: '劳动合同', question: "什么是无固定期限劳动合同？", answer: "指用人单位与劳动者约定无确定终止时间的劳动合同，并非 “铁饭碗”，出现法定解除情形时，用人单位仍可依法解除。" },
+    { id: 9, category: '劳动合同', question: "什么是无固定期限劳动合同？", answer: "指用人单位与劳动者约定无确定终止时间的劳动合同，并非「铁饭碗」，出现法定解除情形时，用人单位仍可依法解除。" },
     { id: 10, category: '劳动合同', question: "什么是服务期？", answer: "用人单位为劳动者提供专项培训费用、进行专业技术培训的，可以与劳动者约定服务期；劳动者违反服务期约定的，需按约定向用人单位支付违约金。" },
     { id: 11, category: '劳动争议', question: "主动辞职能拿补偿金吗？", answer: "一般不能，只有公司拖欠工资、不交社保等违法情况，员工被迫离职，才能主张经济补偿金。" },
     { id: 12, category: '劳动合同', question: "试用期能随便辞退员工吗？", answer: "不能，试用期辞退也要有合法理由、证明员工不符合录用条件，不能无理由开除，且辞退流程要合规。" },
@@ -57,7 +57,7 @@ const flashcards = {
     { id: 26, category: '工资福利', question: "我签了自愿加班协议，公司就不用给我发加班费了，是真的吗？", answer: "不是。是否属于加班，核心看是否是公司安排、是否超出法定工作时长，自愿加班协议不能免除公司支付加班费的法定义务，超出法定时长的公司安排加班，必须依法支付加班费。" },
     { id: 27, category: '劳动合同', question: "不管什么情况，我离职都必须提前 30 天书面通知公司，对吗？", answer: "不对。试用期内离职只需提前 3 天通知；公司存在暴力胁迫劳动、违章指挥危及人身安全等违法情形的，你可以立即解除劳动合同，无需提前通知。" },
     { id: 28, category: '劳动合同', question: "我签了竞业限制协议就必须遵守，对吗？", answer: "不对。竞业限制的生效前提是公司按月支付经济补偿，若公司连续 3 个月未支付，你有权要求解除竞业限制协议，无需再遵守相关约定。" },
-    { id: 29, category: '劳动合同', question: "公司规定旷工 3 天就算自动离职，我旷工 3 天就和公司没关系了，对吗？", answer: "不对。中国法律没有 “自动离职” 的概念，就算你旷工，也需要公司依法作出解除劳动合同的决定并送达给你，劳动关系才会终止，否则仍存在劳动关系。" },
+    { id: 29, category: '劳动合同', question: "公司规定旷工 3 天就算自动离职，我旷工 3 天就和公司没关系了，对吗？", answer: "不对。中国法律没有「自动离职」的概念，就算你旷工，也需要公司依法作出解除劳动合同的决定并送达给你，劳动关系才会终止，否则仍存在劳动关系。" },
     { id: 30, category: '劳动合同', question: "劳动合同只有公司手里有一份，我没有，这份合同就无效，对吗？", answer: "不对。劳动合同只要双方签字盖章、内容不违反法律强制性规定，就是有效的；公司未将劳动合同文本交付给你，属于违法行为，你可以向劳动监察部门投诉，但不影响合同本身的效力。" },
     { id: 31, category: '劳动合同', question: "作为公司员工，我必须听公司安排，公司可以随便给我调岗降薪，对吗？", answer: "不对。调岗降薪属于劳动合同内容的重大变更，必须经双方协商一致，签订书面变更协议；公司单方强制调岗降薪，你有权拒绝，还可据此主张被迫离职，要求经济补偿。" },
     { id: 32, category: '工资福利', question: "法定节假日加班，公司给我安排补休，就不用给 3 倍加班费了，对吗？", answer: "不对。休息日加班可以优先安排补休，不支付 2 倍加班费；但法定节假日加班，必须支付不低于 300% 的工资报酬，不能用补休替代。" },
@@ -82,8 +82,8 @@ const flashcards = {
   ],
   en: [
     { id: 1, category: 'Social Insurance', question: "What is 'Five Insurances and One Fund'?", answer: "It's the statutory workplace protection in China: Five Insurances include Pension, Medical, Unemployment, Work Injury, and Maternity; One Fund is the Housing Provident Fund, co-paid by the employer and employee." },
-    { id: 2, category: 'Salary & Benefits', question: "What does 'Total Package' usually include?", answer: "It refers to the annual pre-tax total income, typically including base salary, performance bonus, year-end bonus/13th month pay, and various fixed allowances. Some companies include signing bonuses and talent subsidies, but exclude employer-paid social security." },
-    { id: 3, category: 'Salary & Benefits', question: "What is '13th Month Pay'?", answer: "An extra month of base salary paid at the end of the year, usually along with the year-end bonus." },
+    { id: 2, category: 'Salary \u0026 Benefits', question: "What does 'Total Package' usually include?", answer: "It refers to the annual pre-tax total income, typically including base salary, performance bonus, year-end bonus/13th month pay, and various fixed allowances. Some companies include signing bonuses and talent subsidies, but exclude employer-paid social security." },
+    { id: 3, category: 'Salary \u0026 Benefits', question: "What is '13th Month Pay'?", answer: "An extra month of base salary paid at the end of the year, usually along with the year-end bonus." },
     { id: 4, category: 'Labor Dispute', question: "What do 'N' and 'N+1' mean in severance pay?", answer: "'N' is based on years of service (1 month's salary per year). 'N+1' adds an extra month of pay in lieu of notice, often used when a company lays off employees without 30 days' prior notice." },
     { id: 5, category: 'Labor Contract', question: "What is a Non-compete Restriction?", answer: "A restriction from working for competitors or leaking secrets for a period after leaving. The company must pay monthly compensation; if not paid, the employee is not restricted." },
     { id: 6, category: 'Labor Contract', question: "What if no labor contract is signed?", answer: "If no contract is signed after 1 month but before 1 year of employment, the company must pay double salary. After 1 year, an open-ended contract is deemed signed." },
@@ -93,10 +93,10 @@ const flashcards = {
     { id: 10, category: 'Labor Contract', question: "What is a Service Period?", answer: "If an employer provides specialized training expenses, they can agree on a service period. If the employee violates it, they must pay liquidated damages as agreed." },
     { id: 11, category: 'Labor Dispute', question: "Can I get severance if I resign voluntarily?", answer: "Generally no. Severance is only applicable if the employee is forced to resign due to company violations like wage arrears or non-payment of social security." },
     { id: 12, category: 'Labor Contract', question: "Can I be dismissed at will during probation?", answer: "No. Dismissal during probation requires legal grounds, such as proof that the employee does not meet hiring criteria, and must follow proper procedures." },
-    { id: 13, category: 'Salary & Benefits', question: "Are there rules for probation salary?", answer: "Yes. Probation salary must not be lower than 80% of the regular salary and must not be lower than the local minimum wage." },
-    { id: 14, category: 'Salary & Benefits', question: "How is overtime pay calculated?", answer: "1.5x for weekdays, 2x for weekends (if no compensatory time off), and 3x for statutory holidays." },
-    { id: 15, category: 'Salary & Benefits', question: "Can a company skip the year-end bonus?", answer: "If not agreed in the contract or rules, it's a flexible benefit. If written in the contract or rules, it must be paid as agreed." },
-    { id: 16, category: 'Salary & Benefits', question: "Does minimum wage include overtime/allowances?", answer: "No. Minimum wage is the base pay excluding overtime, meal/transport/heat allowances, etc." },
+    { id: 13, category: 'Salary \u0026 Benefits', question: "Are there rules for probation salary?", answer: "Yes. Probation salary must not be lower than 80% of the regular salary and must not be lower than the local minimum wage." },
+    { id: 14, category: 'Salary \u0026 Benefits', question: "How is overtime pay calculated?", answer: "1.5x for weekdays, 2x for weekends (if no compensatory time off), and 3x for statutory holidays." },
+    { id: 15, category: 'Salary \u0026 Benefits', question: "Can a company skip the year-end bonus?", answer: "If not agreed in the contract or rules, it's a flexible benefit. If written in the contract or rules, it must be paid as agreed." },
+    { id: 16, category: 'Salary \u0026 Benefits', question: "Does minimum wage include overtime/allowances?", answer: "No. Minimum wage is the base pay excluding overtime, meal/transport/heat allowances, etc." },
     { id: 17, category: 'Working Hours', question: "What is a Medical Period?", answer: "The period during which an employer cannot terminate a contract while an employee is resting due to illness or non-work injury. It ranges from 3-24 months based on total and company service years." },
     { id: 18, category: 'Working Hours', question: "What is Paid Annual Leave?", answer: "Paid leave for employees working continuously for over 1 year. 5 days for 1-10 years, 10 days for 10-20 years, and 15 days for over 20 years. Holidays/weekends are not counted." },
     { id: 19, category: 'Labor Contract', question: "What is Labor Dispatch?", answer: "A form of employment where a dispatch agency signs a contract with the employee and sends them to work for a user entity. The user entity pays the agency, which then pays the employee." },
@@ -104,17 +104,17 @@ const flashcards = {
     { id: 21, category: 'Labor Contract', question: "Is it true that the company can fire me at will during probation?", answer: "No. Dismissal requires legal grounds and proof of unfitness. At-will dismissal is illegal and requires 2N compensation." },
     { id: 22, category: 'Labor Dispute', question: "If I resign, I definitely won't get severance, right?", answer: "Wrong. If you are forced to resign due to company violations (e.g., wage arrears, no social security), you still have the right to claim severance." },
     { id: 23, category: 'Social Insurance', question: "Is an agreement to skip social security for cash valid?", answer: "Invalid. Social security is a legal obligation that cannot be waived by agreement. The company must still pay, and the employee cannot claim extra compensation based on it." },
-    { id: 24, category: 'Salary & Benefits', question: "Is the year-end bonus just a benefit the company can skip?", answer: "Not necessarily. If the contract or rules define clear rules and you meet them, the company must pay and cannot deduct it arbitrarily." },
+    { id: 24, category: 'Salary \u0026 Benefits', question: "Is the year-end bonus just a benefit the company can skip?", answer: "Not necessarily. If the contract or rules define clear rules and you meet them, the company must pay and cannot deduct it arbitrarily." },
     { id: 25, category: 'Social Insurance', question: "Can the company skip social security during probation?", answer: "No. Probation is part of the contract term. Once a labor relationship is established, social security must be paid by law." },
-    { id: 26, category: 'Salary & Benefits', question: "If I sign a voluntary overtime agreement, does the company skip overtime pay?", answer: "No. Overtime is determined by company arrangement and legal hours. Voluntary agreements cannot waive the legal duty to pay for company-arranged overtime." },
+    { id: 26, category: 'Salary \u0026 Benefits', question: "If I sign a voluntary overtime agreement, does the company skip overtime pay?", answer: "No. Overtime is determined by company arrangement and legal hours. Voluntary agreements cannot waive the legal duty to pay for company-arranged overtime." },
     { id: 27, category: 'Labor Contract', question: "Must I always give 30 days' notice to resign?", answer: "No. During probation, only 3 days' notice is needed. In cases of violence or safety risks by the company, you can resign immediately without notice." },
     { id: 28, category: 'Labor Contract', question: "Must I always follow a signed non-compete?", answer: "No. It's only valid if the company pays monthly compensation. If not paid for 3 consecutive months, you can request to terminate the agreement." },
     { id: 29, category: 'Labor Contract', question: "If I'm absent for 3 days, is it 'automatic resignation'?", answer: "No. Chinese law has no 'automatic resignation'. Even if absent, the company must legally decide and serve a termination notice for the relationship to end." },
     { id: 30, category: 'Labor Contract', question: "If only the company has the contract copy, is it invalid?", answer: "No. It's valid if signed/sealed and legal. However, not giving you a copy is a violation; you can complain to labor authorities, but the contract remains effective." },
     { id: 31, category: 'Labor Contract', question: "Can the company change my role/pay at will?", answer: "No. These are major changes requiring mutual written agreement. You can refuse forced changes and claim forced resignation with severance." },
-    { id: 32, category: 'Salary & Benefits', question: "Can the company give compensatory time off instead of 3x holiday pay?", answer: "No. Weekend overtime can be compensated with time off, but statutory holiday overtime must be paid at 300% and cannot be replaced by time off." },
+    { id: 32, category: 'Salary \u0026 Benefits', question: "Can the company give compensatory time off instead of 3x holiday pay?", answer: "No. Weekend overtime can be compensated with time off, but statutory holiday overtime must be paid at 300% and cannot be replaced by time off." },
     { id: 33, category: 'Labor Contract', question: "If I sign a service contract, am I not protected by labor law?", answer: "Wrong. Protection depends on the actual labor relationship (management, fixed pay, core business), not the contract name. If it meets labor criteria, labor law applies." },
-    { id: 34, category: 'Salary & Benefits', question: "If paid in cash, do I skip income tax?", answer: "No. Regardless of payment method, income above the threshold must be taxed. The company has a duty to withhold tax; non-payment is tax evasion." },
+    { id: 34, category: 'Salary \u0026 Benefits', question: "If paid in cash, do I skip income tax?", answer: "No. Regardless of payment method, income above the threshold must be taxed. The company has a duty to withhold tax; non-payment is tax evasion." },
     { id: 35, category: 'Labor Dispute', question: "What's the most direct way to act on wage arrears?", answer: "Keep your contract, pay stubs, attendance, and communication records. Complain to the labor inspection team or apply for labor arbitration." },
     { id: 36, category: 'Labor Dispute', question: "How do I preserve evidence of overtime?", answer: "Keep written notices, system approvals, clock-in records, work communications, and delivery records. Avoid relying solely on personal clock-ins." },
     { id: 37, category: 'Labor Dispute', question: "How to handle an oral dismissal without reason?", answer: "Don't sign a resignation letter. Demand a written termination notice. Save recordings/chats of the dismissal and apply for arbitration for illegal termination pay." },
@@ -123,7 +123,7 @@ const flashcards = {
     { id: 40, category: 'Labor Dispute', question: "How to act if the company won't sign a contract?", answer: "Keep your work ID, attendance, pay stubs, and communications. If working over 1 month but under 1 year without a contract, claim double salary via arbitration." },
     { id: 41, category: 'Social Insurance', question: "What to do if social security payments are interrupted?", answer: "If due to the company, demand they pay or complain to authorities. If personal, locals can pay as flexible workers; non-locals can pay via a new employer." },
     { id: 42, category: 'Labor Dispute', question: "How to handle forced overtime?", answer: "Refuse forced overtime exceeding legal limits. Keep notices/chats. If pay is deducted or you are fired, complain to labor inspection or apply for arbitration." },
-    { id: 43, category: 'Salary & Benefits', question: "What to check on my pay stub?", answer: "Check if base pay, bonuses, and overtime are correct. Verify social security/tax deductions and ensure any absence deductions are reasonable before signing." },
+    { id: 43, category: 'Salary \u0026 Benefits', question: "What to check on my pay stub?", answer: "Check if base pay, bonuses, and overtime are correct. Verify social security/tax deductions and ensure any absence deductions are reasonable before signing." },
     { id: 44, category: 'Labor Contract', question: "What to note during handover when leaving?", answer: "Make a handover list signed by the recipient and supervisor. Get a resignation certificate. Ensure all wages/severance are settled and check social security stop date." },
     { id: 45, category: 'Labor Contract', question: "What if the company won't pay non-compete compensation?", answer: "Keep the agreement and proof of your compliance. If not paid for 3 consecutive months, notify the company to terminate the agreement and claim arrears via arbitration." },
     { id: 46, category: 'Labor Contract', question: "How to handle forced role/pay changes?", answer: "Submit a written objection immediately. Don't report to the new role. Keep notices/chats. If forced, apply for arbitration to restore the role or claim forced resignation severance." },
@@ -140,6 +140,7 @@ export default function KnowledgeCards() {
   const [activeCategory, setActiveCategory] = useState(t('knowledge.all'));
   const [searchQuery, setSearchQuery] = useState('');
   const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({});
+  const [pinnedCards, setPinnedCards] = useState<Record<string, boolean>>({});
 
   const currentCategories = categories[language];
 
@@ -147,25 +148,41 @@ export default function KnowledgeCards() {
   useEffect(() => {
     setActiveCategory(t('knowledge.all'));
   }, [language, t]);
-  
+
   const filteredExpertCards = useMemo(() => {
-    return expertCards[language].filter(card => {
+    const filtered = expertCards[language].filter(card => {
       const matchesCategory = activeCategory === t('knowledge.all') || card.category === activeCategory;
       const matchesSearch = card.title.toLowerCase().includes(searchQuery.toLowerCase()) || card.content.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [language, activeCategory, searchQuery, t]);
+    // 置顶的卡片排最前面
+    return filtered.sort((a, b) => {
+      const aPinned = pinnedCards[a.id] ? 1 : 0;
+      const bPinned = pinnedCards[b.id] ? 1 : 0;
+      return bPinned - aPinned;
+    });
+  }, [language, activeCategory, searchQuery, t, pinnedCards]);
 
   const filteredFlashcards = useMemo(() => {
-    return flashcards[language].filter(card => {
+    const filtered = flashcards[language].filter(card => {
       const matchesCategory = activeCategory === t('knowledge.all') || card.category === activeCategory;
       const matchesSearch = card.question.toLowerCase().includes(searchQuery.toLowerCase()) || card.answer.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [language, activeCategory, searchQuery, t]);
+    // 置顶的卡片排最前面
+    return filtered.sort((a, b) => {
+      const aPinned = pinnedCards[`qa-${a.id}`] ? 1 : 0;
+      const bPinned = pinnedCards[`qa-${b.id}`] ? 1 : 0;
+      return bPinned - aPinned;
+    });
+  }, [language, activeCategory, searchQuery, t, pinnedCards]);
 
   const toggleFlip = (id: number) => {
     setFlippedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const togglePin = (id: string) => {
+    setPinnedCards(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -250,8 +267,11 @@ export default function KnowledgeCards() {
                     {card.category}
                   </span>
                   <div className="flex gap-2">
-                    <button className="text-slate-300 hover:text-blue-600">
-                      <Bookmark className="h-4 w-4" />
+                    <button
+                      onClick={() => togglePin(card.id)}
+                      className={`transition-colors ${pinnedCards[card.id] ? 'text-blue-600' : 'text-slate-300 hover:text-blue-600'}`}
+                    >
+                      <Bookmark className={`h-4 w-4 ${pinnedCards[card.id] ? 'fill-current' : ''}`} />
                     </button>
                     <button className="text-slate-300 hover:text-blue-600">
                       <Share2 className="h-4 w-4" />
@@ -294,7 +314,18 @@ export default function KnowledgeCards() {
                   <div className="absolute inset-0 backface-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-400">
                     <div className="mb-3 flex items-center justify-between">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Q{card.id}</span>
-                      <Sparkles className="h-3 w-3 text-blue-400" />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePin(`qa-${card.id}`);
+                          }}
+                          className={`transition-colors ${pinnedCards[`qa-${card.id}`] ? 'text-blue-600' : 'text-slate-300 hover:text-blue-600'}`}
+                        >
+                          <Bookmark className={`h-3 w-3 ${pinnedCards[`qa-${card.id}`] ? 'fill-current' : ''}`} />
+                        </button>
+                        <Sparkles className="h-3 w-3 text-blue-400" />
+                      </div>
                     </div>
                     <h4 className="text-sm font-bold leading-snug text-slate-900">
                       {card.question}
