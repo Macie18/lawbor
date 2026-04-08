@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, PhoneOff, MessageSquare, User, ShieldCheck, AlertCircle, ArrowRight, Settings2, Sparkles, Camera, CameraOff, Loader2, Activity, Volume2, VolumeX } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, User, ShieldCheck, AlertCircle, ArrowRight, Settings2, Camera, CameraOff, Loader2, Activity, Volume2, VolumeX } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useSpeechDictation } from '../../hooks/useSpeechDictation';
+import { useAiSpeakLevel } from '../../hooks/useAiSpeakLevel';
 import { cancelBrowserSpeech, isBrowserTtsSupported, speakWithBrowser } from '../../utils/browserTts';
-import { sendChatMessage, type ChatHistoryItem } from '../../api/chat';
-import { TalkingHead } from '../../components/TalkingHead';
+import { llmService, type LLMMessage } from '../../services/llmService';
+import { InterviewFloatingOrb } from '../../components/InterviewFloatingOrb';
 
 interface InterviewReport {
   score: number;
-  strengths: string[];
-  weaknesses: string[];
+  /** 面试表现分析，固定 3 条 */
+  performanceInsights: string[];
+  /** 高情商建议，固定 3 条 */
   suggestions: string[];
   radar: {
     logic: number;
@@ -23,26 +25,154 @@ interface InterviewReport {
   observations: string[];
 }
 
-const Waveform = ({ volume, color = "bg-blue-500" }: { volume: number, color?: string }) => {
-  return (
-    <div className="flex items-center gap-1 h-32">
-      {[...Array(20)].map((_, i) => {
-        const seed = (i * 137) % 100 / 100;
-        const height = Math.max(4, (volume / 100) * 128 * (0.5 + seed * 0.5));
-        return (
-          <motion.div
-            key={i}
-            animate={{ height: height }}
-            className={cn("w-1.5 rounded-full transition-all duration-75", color)}
-          />
-        );
-      })}
-    </div>
+function tpl(t: (key: string) => string, key: string, vars: Record<string, string | number>): string {
+  let s = t(key);
+  for (const [k, v] of Object.entries(vars)) {
+    s = s.split(`{{${k}}}`).join(String(v));
+  }
+  return s;
+}
+
+function speechErrorMessage(t: (key: string) => string, code: string): string {
+  const k = `interview.speech.${code}`;
+  const msg = t(k);
+  if (msg === k) return tpl(t, 'interview.speech.unknown', { code });
+  return msg;
+}
+
+function toLLMMessages(transcript: { role: 'user' | 'ai'; text: string }[]): LLMMessage[] {
+  return transcript.map((t) => ({
+    role: t.role === 'user' ? 'user' : 'assistant',
+    content: t.text,
+  }));
+}
+
+function asStringArray(v: unknown, max: number): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => String(x ?? '').trim()).filter(Boolean).slice(0, max);
+}
+
+function padToThree(items: string[], fillers: string[], padChar: string): string[] {
+  const out = [...items];
+  let i = 0;
+  while (out.length < 3 && i < fillers.length) {
+    if (!out.includes(fillers[i])) out.push(fillers[i]);
+    i++;
+  }
+  while (out.length < 3) out.push(padChar);
+  return out.slice(0, 3);
+}
+
+/** 英文报告页：若模型仍返回含较多中文的句子，用英文兜底替换该条，避免界面语言不一致 */
+function isPrimarilyChineseText(s: string): boolean {
+  const t = s.trim();
+  if (!t) return false;
+  const cjk = (t.match(/[\u4e00-\u9fff]/g) ?? []).length;
+  return cjk >= 4 || cjk / t.length > 0.12;
+}
+
+function ensureEnglishReportStrings(
+  items: string[],
+  englishFallbacks: string[],
+): string[] {
+  return items.map((line, i) =>
+    isPrimarilyChineseText(line) ? englishFallbacks[i] ?? englishFallbacks[0] ?? line : line,
   );
-};
+}
+
+function parseReportPayload(
+  raw: string,
+  transcript: { role: 'user' | 'ai'; text: string }[],
+  t: (key: string) => string,
+  locale: 'zh' | 'en',
+): InterviewReport {
+  const userMessagesCount = transcript.filter((x) => x.role === 'user').length;
+  const totalLength = transcript.reduce((sum, x) => sum + x.text.length, 0);
+  const padChar = t('interview.report.dash');
+
+  const fallbackInsights = [
+    tpl(t, 'interview.report.fallbackInsight1', { rounds: userMessagesCount, chars: totalLength }),
+    t('interview.report.fallbackInsight2'),
+    t('interview.report.fallbackInsight3'),
+  ];
+  const fallbackSuggestions = [
+    t('interview.report.fallbackSuggestion1'),
+    t('interview.report.fallbackSuggestion2'),
+    t('interview.report.fallbackSuggestion3'),
+  ];
+
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    data = {};
+  }
+
+  const legacyStrengths = asStringArray(data.strengths, 3);
+  const legacyWeaknesses = asStringArray(data.weaknesses, 3);
+  const legacyMerged = [...legacyStrengths, ...legacyWeaknesses];
+
+  let insights = asStringArray(data.performanceInsights, 5);
+  if (insights.length < 3) {
+    const alt = asStringArray(data.performance_analysis, 5);
+    if (alt.length) insights = [...insights, ...alt];
+  }
+  if (insights.length < 3 && legacyMerged.length) {
+    insights = [...insights, ...legacyMerged];
+  }
+  insights = padToThree(insights, fallbackInsights, padChar);
+
+  let suggestions = asStringArray(data.suggestions, 5);
+  if (data.eq_suggestions) suggestions = [...suggestions, ...asStringArray(data.eq_suggestions, 5)];
+  suggestions = padToThree(suggestions, fallbackSuggestions, padChar);
+
+  if (locale === 'en') {
+    insights = ensureEnglishReportStrings(insights, fallbackInsights);
+    suggestions = ensureEnglishReportStrings(suggestions, fallbackSuggestions);
+  }
+
+  const radarRaw = data.radar as Record<string, unknown> | undefined;
+  const num = (k: string, d: number) => {
+    const x = radarRaw?.[k];
+    const n = typeof x === 'number' ? x : typeof x === 'string' ? parseFloat(x) : NaN;
+    if (Number.isFinite(n)) return Math.max(0, Math.min(100, Math.round(n)));
+    return d;
+  };
+
+  const radar = {
+    logic: num('logic', 60),
+    emotion: num('emotion', 58),
+    professionalism: num('professionalism', 60),
+    resilience: num('resilience', 58),
+  };
+
+  const scoreRaw = data.score;
+  let score =
+    typeof scoreRaw === 'number'
+      ? scoreRaw
+      : typeof scoreRaw === 'string'
+        ? parseFloat(scoreRaw)
+        : NaN;
+  if (!Number.isFinite(score)) score = 60;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  return {
+    score,
+    performanceInsights: insights,
+    suggestions,
+    radar,
+    transcript,
+    observations: [
+      tpl(t, 'interview.report.obsTurns', { n: userMessagesCount }),
+      tpl(t, 'interview.report.obsChars', { n: totalLength }),
+    ],
+  };
+}
 
 export default function Interview() {
   const { t, language } = useTranslation();
+  const speechLang = language === 'zh' ? 'zh-CN' : 'en-US';
+
   const [step, setStep] = useState<'setup' | 'call' | 'report'>('setup');
   const [temperament, setTemperament] = useState(50);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -57,6 +187,11 @@ export default function Interview() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [currentInput, setCurrentInput] = useState('');
   const [ttsOn, setTtsOn] = useState(true);
+  const [orbVoiceActive, setOrbVoiceActive] = useState(false);
+  const [voiceSessionActive, setVoiceSessionActive] = useState(false);
+  const voiceSessionActiveRef = useRef(false);
+  const isMutedRef = useRef(false);
+  const isThinkingRef = useRef(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -64,75 +199,132 @@ export default function Interview() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number | null>(null);
   const transcriptRef = useRef<{ role: 'user' | 'ai'; text: string }[]>([]);
+  const speechRef = useRef<ReturnType<typeof useSpeechDictation> | null>(null);
+  const handleSendMessageRef = useRef<(text: string) => Promise<void>>(async () => {});
 
-  // 语音识别 Hook
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    isThinkingRef.current = isThinking;
+  }, [isThinking]);
+
+  /** 连续对话开启且未静音时，才向本页传入麦克风音频（硬件轨道关闭 + 停止识别，浏览器侧无法再拾取本轮流上的声音） */
+  useEffect(() => {
+    if (step !== 'call' || !streamRef.current) return;
+    const allowMic = voiceSessionActive && !isMuted;
+    streamRef.current.getAudioTracks().forEach((t) => {
+      t.enabled = allowMic;
+    });
+  }, [step, voiceSessionActive, isMuted]);
+
   const speech = useSpeechDictation({
     onCommit: (text) => {
       if (!text.trim()) return;
+      if (!voiceSessionActiveRef.current || isMutedRef.current) return;
       setCurrentInput(text);
-      handleSendMessage(text);
+      void handleSendMessageRef.current(text);
     },
     onResult: (text) => {
+      if (!voiceSessionActiveRef.current || isMutedRef.current) return;
       setCurrentInput(text);
     },
     onError: (code) => {
       console.error('Speech recognition error:', code);
-      setError(`语音识别错误: ${code}`);
+      setError(speechErrorMessage(t, code));
     },
     silenceMs: 2000,
-    lang: 'zh-CN',
+    lang: speechLang,
   });
 
-  // 发送消息到 laboris-api (DeepSeek) 并获取响应
+  speechRef.current = speech;
+
+  const orbEnvelope = useAiSpeakLevel(orbVoiceActive);
+  const orbVoiceLevel = !orbVoiceActive
+    ? 0
+    : Math.min(
+        1,
+        orbEnvelope * 0.9 + (aiVolume > 12 ? Math.min(1, aiVolume / 130) * 0.18 : 0),
+      );
+
+  const scheduleResumeListening = useCallback(() => {
+    if (!voiceSessionActiveRef.current || isMutedRef.current) return;
+    window.setTimeout(() => {
+      if (!voiceSessionActiveRef.current || isMutedRef.current || isThinkingRef.current) return;
+      speechRef.current?.start();
+    }, 380);
+  }, []);
+
   const handleSendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
-    // 添加用户消息
     setMessages(prev => [...prev, { role: 'user', text }]);
     transcriptRef.current.push({ role: 'user', text });
     setCurrentInput('');
     setIsThinking(true);
 
     try {
-      // 构建消息历史（排除最后一条用户消息，因为要单独发送）
-      const history: ChatHistoryItem[] = transcriptRef.current
+      const prior: LLMMessage[] = transcriptRef.current
         .slice(0, -1)
         .map(t => ({
           role: t.role === 'user' ? 'user' : 'assistant',
           content: t.text,
         }));
 
-      // 调用 laboris-api 的 /v1/chat 接口
-      const aiResponse = await sendChatMessage({
-        role: 'hr', // 严肃的 HR 面试官
-        temperature: temperament,
-        scenario: 'layoff',
-        userMessage: text,
-        history,
-      });
+      const aiResponse = await llmService.generateResponse(
+        [...prior, { role: 'user', content: text }],
+        {
+          temperature: temperament,
+          role: 'hr',
+          scenario: 'law_campus',
+          locale: language,
+        },
+      );
 
       setMessages(prev => [...prev, { role: 'ai', text: aiResponse }]);
       transcriptRef.current.push({ role: 'ai', text: aiResponse });
 
-      // TTS 播放并触发 TalkingHead 动画
       if (ttsOn && isBrowserTtsSupported()) {
-        speakWithBrowser(aiResponse, {
-          lang: 'zh-CN',
-          rate: 1.0,
-          onStart: () => setAiVolume(100),
-          onEnd: () => setAiVolume(0),
-          onError: () => setAiVolume(0),
-        });
+        setOrbVoiceActive(true);
+        try {
+          await speakWithBrowser(aiResponse, {
+            lang: speechLang,
+            rate: 1.0,
+            onStart: () => setAiVolume(100),
+            onEnd: () => {
+              setAiVolume(0);
+              setOrbVoiceActive(false);
+            },
+            onError: () => {
+              setAiVolume(0);
+              setOrbVoiceActive(false);
+            },
+          });
+        } catch {
+          setAiVolume(0);
+          setOrbVoiceActive(false);
+        }
+      } else {
+        setOrbVoiceActive(true);
+        window.setTimeout(
+          () => setOrbVoiceActive(false),
+          Math.min(12000, 900 + aiResponse.length * 48),
+        );
       }
+
+      scheduleResumeListening();
     } catch (error) {
       console.error('[API] Response error:', error);
-      setError('AI 响应失败，请重试');
+      const msg = error instanceof Error ? error.message : t('interview.error.retry');
+      setError(tpl(t, 'interview.error.replyFailed', { msg }));
     } finally {
       setIsThinking(false);
     }
-  }, [temperament, ttsOn]);
+  }, [temperament, ttsOn, scheduleResumeListening, t, speechLang, language]);
 
-  // 开始面试
+  handleSendMessageRef.current = handleSendMessage;
+
   const startInterview = async () => {
     setIsConnecting(true);
     setStep('call');
@@ -153,17 +345,23 @@ export default function Interview() {
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
 
-      // 设置音量分析
       setupAudioAnalyser(stream);
       setIsConnecting(false);
+
+      voiceSessionActiveRef.current = true;
+      setVoiceSessionActive(true);
+      window.setTimeout(() => {
+        if (voiceSessionActiveRef.current && speechRef.current?.supported) {
+          speechRef.current.start();
+        }
+      }, 650);
     } catch (err) {
       console.error('Media access error:', err);
-      setError(err instanceof Error ? err.message : '无法访问麦克风或摄像头');
+      setError(err instanceof Error ? err.message : t('interview.error.mediaDenied'));
       setIsConnecting(false);
     }
   };
 
-  // 设置音频分析器
   const setupAudioAnalyser = (stream: MediaStream) => {
     const audioContext = new AudioContext();
     audioContextRef.current = audioContext;
@@ -189,7 +387,6 @@ export default function Interview() {
     updateVolume();
   };
 
-  // 检查麦克风权限
   const checkMicrophonePermission = async (): Promise<boolean> => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -200,33 +397,65 @@ export default function Interview() {
     }
   };
 
-  // 开始语音识别
-  const onVoiceStart = async () => {
+  const toggleMicMuted = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      isMutedRef.current = next;
+      if (next) {
+        speechRef.current?.cancel();
+      } else if (voiceSessionActiveRef.current) {
+        window.setTimeout(() => {
+          if (
+            voiceSessionActiveRef.current &&
+            !isMutedRef.current &&
+            !isThinkingRef.current
+          ) {
+            speechRef.current?.start();
+          }
+        }, 280);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleVoiceConversation = async () => {
+    if (voiceSessionActiveRef.current) {
+      voiceSessionActiveRef.current = false;
+      setVoiceSessionActive(false);
+      speech.cancel();
+      setError(null);
+      return;
+    }
+
     if (!speech.supported) {
-      setError('当前浏览器不支持语音识别，请使用 Chrome 或 Edge');
+      setError(t('interview.error.browserNoSpeech'));
       return;
     }
 
     if (isThinking) {
-      setError('请等待 AI 回复完成');
+      setError(t('interview.error.waitForAi'));
       return;
     }
 
-    if (speech.listening) return;
-
-    // 检查麦克风权限
     const hasPermission = await checkMicrophonePermission();
     if (!hasPermission) {
-      setError('无法使用麦克风：请在浏览器中允许访问麦克风');
+      setError(t('interview.error.micDenied'));
       return;
     }
 
-    speech.start();
+    voiceSessionActiveRef.current = true;
+    setVoiceSessionActive(true);
+    setIsMuted(false);
     setError(null);
+    if (!speech.listening) {
+      speech.start();
+    }
   };
 
-  // 结束通话
   const endCall = async () => {
+    voiceSessionActiveRef.current = false;
+    setVoiceSessionActive(false);
+    setOrbVoiceActive(false);
     speech.cancel();
     cancelBrowserSpeech();
     setIsThinking(false);
@@ -246,50 +475,26 @@ export default function Interview() {
     generateReport();
   };
 
-  // 生成报告（使用本地模拟）
   const generateReport = async () => {
     setIsGeneratingReport(true);
+    const transcript = [...transcriptRef.current];
 
-    // 模拟 LLM 生成报告的过程
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // 分析对话内容生成简单评估
-    const userMessagesCount = transcriptRef.current.filter(t => t.role === 'user').length;
-    const totalLength = transcriptRef.current.reduce((sum, t) => sum + t.text.length, 0);
-
-    setReport({
-      score: Math.floor(60 + Math.random() * 30),
-      strengths: [
-        '表达清晰有条理',
-        '对劳动法有一定了解',
-        '能够耐心听取仲裁员意见',
-      ],
-      weaknesses: [
-        '证据准备不够充分',
-        '对赔偿计算方式不熟悉',
-        '面对追问时略显紧张',
-      ],
-      suggestions: [
-        '建议提前准备好劳动合同、工资流水、离职证明等证据材料',
-        '了解 N+1、2N 等赔偿计算方式',
-        '保持冷静，即使面对压力提问也要坚持自己的合理诉求',
-      ],
-      radar: {
-        logic: Math.floor(65 + Math.random() * 25),
-        emotion: Math.floor(60 + Math.random() * 30),
-        professionalism: Math.floor(55 + Math.random() * 30),
-        resilience: Math.floor(60 + Math.random() * 25),
-      },
-      transcript: transcriptRef.current,
-      observations: [`对话轮数: ${userMessagesCount}`, `总文字量: ${totalLength}字`],
-    });
-
-    setIsGeneratingReport(false);
+    try {
+      const messages = toLLMMessages(transcript);
+      const raw = await llmService.generateReport(messages, language);
+      setReport(parseReportPayload(raw, transcript, t, language));
+    } catch (e) {
+      console.error('[Interview] generateReport', e);
+      setReport(parseReportPayload('{}', transcript, t, language));
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
-  // 清理
   useEffect(() => {
     return () => {
+      voiceSessionActiveRef.current = false;
+      setOrbVoiceActive(false);
       speech.cancel();
       cancelBrowserSpeech();
       if (streamRef.current) {
@@ -307,8 +512,8 @@ export default function Interview() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <header className="mb-8">
-        <h2 className="text-3xl font-bold text-slate-900">1v1 模拟面试</h2>
-        <p className="text-slate-500">沉浸式 AI 面试体验，实时声纹波动，深度对话分析</p>
+        <h2 className="text-3xl font-bold text-slate-900">{t('interview.title')}</h2>
+        <p className="text-slate-500">{t('interview.subtitle')}</p>
       </header>
 
       {step === 'setup' && (
@@ -322,16 +527,16 @@ export default function Interview() {
               <Settings2 className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="text-xl font-bold">面试官性格配置</h3>
-              <p className="text-sm text-slate-500">调节面试官的性格阈值，适应不同面试风格</p>
+              <h3 className="text-xl font-bold">{t('interview.setup.personalityTitle')}</h3>
+              <p className="text-sm text-slate-500">{t('interview.setup.personalityDesc')}</p>
             </div>
           </div>
 
           <div className="mb-12 space-y-8">
             <div className="space-y-4">
               <div className="flex justify-between text-sm font-bold">
-                <span className="text-emerald-600">温和引导型</span>
-                <span className="text-rose-600">极限施压型</span>
+                <span className="text-emerald-600">{t('interview.setup.warmLabel')}</span>
+                <span className="text-rose-600">{t('interview.setup.pressureLabel')}</span>
               </div>
               <input
                 type="range"
@@ -345,11 +550,13 @@ export default function Interview() {
             </div>
 
             <div className="rounded-2xl bg-slate-50 p-6">
-              <h4 className="mb-2 font-bold text-slate-700">当前风格描述：</h4>
+              <h4 className="mb-2 font-bold text-slate-700">{t('interview.setup.styleHeading')}</h4>
               <p className="text-sm text-slate-500">
-                {temperament < 30 ? "面试官非常友善，会主动引导你回答问题，适合初次练习。" :
-                 temperament < 70 ? "面试官专业且严谨，会针对你的回答进行追问，模拟真实面试场景。" :
-                 "面试官言辞犀利，会不断打断并质疑你的观点，考验你的心理素质和应变能力。"}
+                {temperament < 30
+                  ? t('interview.setup.styleLow')
+                  : temperament < 70
+                    ? t('interview.setup.styleMid')
+                    : t('interview.setup.styleHigh')}
               </p>
             </div>
           </div>
@@ -358,7 +565,7 @@ export default function Interview() {
             onClick={startInterview}
             className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 text-lg font-bold text-white transition-all hover:bg-blue-700 active:scale-95"
           >
-            开始面试
+            {t('interview.start')}
             <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
           </button>
         </motion.div>
@@ -377,16 +584,15 @@ export default function Interview() {
                   <div className="h-24 w-24 animate-ping rounded-full bg-violet-600/20" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="h-16 w-16 rounded-full bg-violet-600 flex items-center justify-center">
-                      <Sparkles className="h-8 w-8" />
+                      <Loader2 className="h-8 w-8 animate-spin" />
                     </div>
                   </div>
                 </div>
-                <h3 className="text-2xl font-black tracking-widest">正在启动面试...</h3>
+                <h3 className="text-2xl font-black tracking-widest">{t('interview.call.connecting')}</h3>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* 错误提示 */}
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
@@ -398,31 +604,51 @@ export default function Interview() {
             </motion.div>
           )}
 
-          {/* AI View - TalkingHead */}
           <div className="relative flex h-full w-full items-center justify-center bg-slate-900">
-            {/* TalkingHead 动画头像 */}
-            <div className="w-full max-w-lg aspect-video rounded-3xl overflow-hidden shadow-2xl border border-white/10">
-              <TalkingHead
-                src="/avatars/HR.png"
-                temperature={temperament}
-                speakLevel={aiVolume > 10 ? Math.min(1, aiVolume / 150) : 0}
-                listeningDim={speech.listening}
-              />
+            <div className="flex w-full max-w-lg flex-col items-center justify-center py-8">
+              <InterviewFloatingOrb voiceLevel={orbVoiceLevel} listeningDim={speech.listening} />
             </div>
 
-            {/* 状态文字 */}
             <div className="absolute bottom-32 text-center">
-              <h3 className="text-xl font-bold text-white">HR 面试官</h3>
-              <p className="text-slate-400">{isThinking ? '正在组织语言...' : speech.listening ? '正在聆听...' : '等待你的陈述...'}</p>
+              <h3 className="text-xl font-bold text-white">{t('interview.call.interviewerLabel')}</h3>
+              <p className="text-slate-400">
+                {isThinking
+                  ? t('interview.call.statusThinking')
+                  : !voiceSessionActive
+                    ? t('interview.call.statusPaused')
+                    : speech.listening
+                      ? t('interview.call.statusListening')
+                      : t('interview.call.statusPreparingListen')}
+              </p>
             </div>
 
-            {/* 字幕区域 */}
             <div className="absolute bottom-32 left-1/2 w-full max-w-3xl -translate-x-1/2 px-4">
-              <AnimatePresence mode="wait">
-                {/* AI 消息字幕 */}
-                {messages.length > 0 && messages[messages.length - 1].role === 'ai' && !isThinking && (
+              <AnimatePresence>
+                {isThinking && (
                   <motion.div
-                    key="ai-subtitle"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="rounded-3xl bg-violet-600/60 p-6 text-center text-xl font-medium text-white backdrop-blur-xl border border-white/10"
+                  >
+                    <Loader2 className="inline h-5 w-5 animate-spin mr-2" />
+                    {t('interview.call.preparingReply')}
+                  </motion.div>
+                )}
+
+                {!isThinking && speech.listening && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="rounded-3xl bg-blue-600/60 p-6 text-center text-xl font-medium text-white backdrop-blur-xl border border-white/10"
+                  >
+                    {speech.liveLine || t('interview.call.listenPlaceholder')}
+                  </motion.div>
+                )}
+
+                {!isThinking && !speech.listening && messages.length > 0 && messages[messages.length - 1].role === 'ai' && (
+                  <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
@@ -431,38 +657,10 @@ export default function Interview() {
                     {messages[messages.length - 1].text}
                   </motion.div>
                 )}
-
-                {/* 用户正在说话 */}
-                {speech.listening && (
-                  <motion.div
-                    key="listening"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="rounded-3xl bg-blue-600/60 p-6 text-center text-xl font-medium text-white backdrop-blur-xl border border-white/10"
-                  >
-                    {speech.liveLine || '正在聆听...请说话'}
-                  </motion.div>
-                )}
-
-                {/* 思考中 */}
-                {isThinking && (
-                  <motion.div
-                    key="thinking"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="rounded-3xl bg-violet-600/60 p-6 text-center text-xl font-medium text-white backdrop-blur-xl border border-white/10"
-                  >
-                    <Loader2 className="inline h-5 w-5 animate-spin mr-2" />
-                    AI 正在思考...
-                  </motion.div>
-                )}
               </AnimatePresence>
             </div>
           </div>
 
-          {/* User PIP - Video */}
           <div className="absolute right-8 top-8 h-48 w-64 overflow-hidden rounded-3xl border-2 border-white/20 bg-slate-800 shadow-2xl">
             <video
               ref={videoRef}
@@ -479,45 +677,51 @@ export default function Interview() {
             <div className="absolute bottom-0 left-0 h-1.5 bg-violet-500 transition-all duration-75" style={{ width: `${Math.min(100, volume * 2)}%` }} />
           </div>
 
-          {/* Controls */}
           <div className="absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-6 rounded-full bg-white/10 p-4 backdrop-blur-2xl border border-white/10">
-            {/* 语音按钮 */}
             <button
-              onClick={onVoiceStart}
-              disabled={isThinking}
+              type="button"
+              onClick={() => void toggleVoiceConversation()}
+              disabled={(isThinking && !voiceSessionActive) || isConnecting}
+              title={
+                voiceSessionActive ? t('interview.voice.titlePause') : t('interview.voice.titleStart')
+              }
               className={cn(
-                "flex h-14 w-14 items-center justify-center rounded-full transition-all",
-                speech.listening
-                  ? "bg-blue-500 text-white animate-pulse"
-                  : "bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
+                'flex h-14 min-w-[220px] items-center justify-center gap-3 rounded-full px-6 text-sm font-semibold transition-all',
+                voiceSessionActive
+                  ? speech.listening
+                    ? 'bg-blue-500 text-white shadow-lg shadow-blue-900/40 animate-pulse'
+                    : 'bg-blue-600/90 text-white hover:bg-blue-600'
+                  : 'bg-white/15 text-white hover:bg-white/25',
+                isThinking && !voiceSessionActive && 'opacity-50 cursor-not-allowed',
               )}
             >
-              {speech.listening ? <Activity className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-            </button>
-
-            {/* 说完了发送 */}
-            <button
-              onClick={() => speech.commitAndStop()}
-              disabled={!speech.listening || isThinking}
-              className="flex h-12 items-center justify-center rounded-full bg-blue-600 px-4 text-sm font-medium text-white transition-all hover:bg-blue-700 disabled:opacity-50"
-            >
-              说完了发送
-            </button>
-
-            {/* 取消语音 */}
-            <button
-              onClick={() => speech.cancel()}
-              disabled={!speech.listening}
-              className="flex h-12 items-center justify-center rounded-full bg-white/10 px-4 text-sm font-medium text-white transition-all hover:bg-white/20 disabled:opacity-50"
-            >
-              取消
+              {voiceSessionActive ? (
+                <>
+                  {speech.listening ? (
+                    <Activity className="h-5 w-5 shrink-0" />
+                  ) : (
+                    <Mic className="h-5 w-5 shrink-0" />
+                  )}
+                  <span className="text-left leading-tight">
+                    {speech.listening
+                      ? t('interview.voice.listeningTapPause')
+                      : t('interview.voice.preparingTapPause')}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Mic className="h-5 w-5 shrink-0" />
+                  <span>{t('interview.voice.session')}</span>
+                </>
+              )}
             </button>
 
             <div className="h-10 w-px bg-white/20" />
 
-            {/* 静音 */}
             <button
-              onClick={() => setIsMuted(!isMuted)}
+              type="button"
+              onClick={toggleMicMuted}
+              title={isMuted ? t('interview.mic.unmuteTitle') : t('interview.mic.muteTitle')}
               className={cn(
                 "flex h-14 w-14 items-center justify-center rounded-full transition-all",
                 isMuted ? "bg-rose-500 text-white" : "bg-white/10 text-white hover:bg-white/20"
@@ -526,7 +730,6 @@ export default function Interview() {
               {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
             </button>
 
-            {/* 视频开关 */}
             <button
               onClick={() => setIsVideoOff(!isVideoOff)}
               className={cn(
@@ -537,7 +740,6 @@ export default function Interview() {
               {isVideoOff ? <CameraOff className="h-6 w-6" /> : <Camera className="h-6 w-6" />}
             </button>
 
-            {/* TTS 开关 */}
             <button
               onClick={() => {
                 if (ttsOn) {
@@ -551,14 +753,19 @@ export default function Interview() {
                 "flex h-14 w-14 items-center justify-center rounded-full transition-all",
                 ttsOn ? "bg-emerald-500 text-white" : "bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
               )}
-              title={isBrowserTtsSupported() ? (ttsOn ? '关闭语音播报' : '开启语音播报') : '浏览器不支持语音播报'}
+              title={
+                isBrowserTtsSupported()
+                  ? ttsOn
+                    ? t('interview.tts.offTitle')
+                    : t('interview.tts.onTitle')
+                  : t('interview.tts.unsupported')
+              }
             >
               {ttsOn ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
             </button>
 
             <div className="h-10 w-px bg-white/20" />
 
-            {/* 挂断 */}
             <button
               onClick={endCall}
               className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-600 text-white shadow-2xl shadow-rose-900/50 transition-all hover:bg-rose-700 hover:scale-110 active:scale-95"
@@ -567,15 +774,16 @@ export default function Interview() {
             </button>
           </div>
 
-          {/* Status */}
           <div className="absolute left-8 top-8 flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 backdrop-blur-md">
               <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              <span className="text-xs font-black uppercase tracking-widest text-white">就绪</span>
+              <span className="text-xs font-black uppercase tracking-widest text-white">
+                {t('interview.status.ready')}
+              </span>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 backdrop-blur-md">
               <ShieldCheck className="h-4 w-4 text-emerald-400" />
-              <span className="text-xs font-bold text-white">Secure</span>
+              <span className="text-xs font-bold text-white">{t('interview.status.secure')}</span>
             </div>
           </div>
         </div>
@@ -590,42 +798,31 @@ export default function Interview() {
           {isGeneratingReport ? (
             <div className="flex h-[400px] flex-col items-center justify-center rounded-[40px] bg-white shadow-xl">
               <Loader2 className="mb-4 h-12 w-12 animate-spin text-blue-600" />
-              <h3 className="text-xl font-bold">AI 正在深度分析您的面试表现...</h3>
-              <p className="text-slate-500">结合语气、表情及逻辑进行多维度评估</p>
+              <h3 className="text-xl font-bold">{t('interview.report.generatingTitle')}</h3>
+              <p className="text-slate-500">{t('interview.report.generatingSub')}</p>
             </div>
           ) : report && (
             <div className="grid gap-8 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-8">
                 <div className="rounded-[40px] border border-slate-200 bg-white p-8 shadow-xl">
-                  <h3 className="mb-6 text-2xl font-bold">面试表现分析</h3>
-                  <div className="grid gap-6 sm:grid-cols-2">
-                    <div className="rounded-3xl bg-emerald-50 p-6">
-                      <h4 className="mb-4 font-bold text-emerald-700">核心优势</h4>
-                      <ul className="space-y-2">
-                        {report.strengths.map((s, i) => (
-                          <li key={i} className="flex items-center gap-2 text-sm text-emerald-600">
-                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                            {s}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="rounded-3xl bg-rose-50 p-6">
-                      <h4 className="mb-4 font-bold text-rose-700">待改进项</h4>
-                      <ul className="space-y-2">
-                        {report.weaknesses.map((w, i) => (
-                          <li key={i} className="flex items-center gap-2 text-sm text-rose-600">
-                            <div className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-                            {w}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
+                  <h3 className="mb-6 text-2xl font-bold">{t('interview.report.performanceTitle')}</h3>
+                  <ul className="space-y-4">
+                    {report.performanceInsights.map((line, i) => (
+                      <li
+                        key={i}
+                        className="flex gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-sm leading-relaxed text-slate-700"
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
+                          {i + 1}
+                        </span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
 
                 <div className="rounded-[40px] border border-slate-200 bg-white p-8 shadow-xl">
-                  <h3 className="mb-6 text-2xl font-bold">高情商建议</h3>
+                  <h3 className="mb-6 text-2xl font-bold">{t('interview.report.suggestionsTitle')}</h3>
                   <div className="space-y-4">
                     {report.suggestions.map((s, i) => (
                       <div key={i} className="flex gap-4 rounded-2xl bg-slate-50 p-4">
@@ -641,19 +838,23 @@ export default function Interview() {
 
               <div className="space-y-8">
                 <div className="rounded-[40px] border border-slate-200 bg-white p-8 text-center shadow-xl">
-                  <div className="mb-4 text-sm font-bold uppercase tracking-widest text-slate-400">综合评分</div>
+                  <div className="mb-4 text-sm font-bold uppercase tracking-widest text-slate-400">
+                    {t('interview.report.scoreLabel')}
+                  </div>
                   <div className="text-7xl font-black text-blue-600">{report.score}</div>
-                  <div className="mt-4 text-sm font-medium text-slate-500">满分 100 分</div>
+                  <div className="mt-4 text-sm font-medium text-slate-500">
+                    {t('interview.report.scoreMax')}
+                  </div>
                 </div>
 
                 <div className="rounded-[40px] border border-slate-200 bg-white p-8 shadow-xl">
-                  <h3 className="mb-6 font-bold">能力雷达图</h3>
+                  <h3 className="mb-6 font-bold">{t('interview.report.radarTitle')}</h3>
                   <div className="space-y-4">
-                    {Object.entries(report.radar).map(([key, value]) => (
+                    {(Object.entries(report.radar) as [keyof InterviewReport['radar'], number][]).map(([key, value]) => (
                       <div key={key} className="space-y-2">
-                        <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-slate-400">
-                          <span>{key}</span>
-                          <span>{value}%</span>
+                        <div className="flex justify-between text-xs font-bold text-slate-500">
+                          <span>{t(`interview.radar.${key}`)}</span>
+                          <span>{value}</span>
                         </div>
                         <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                           <motion.div
@@ -671,7 +872,7 @@ export default function Interview() {
                   onClick={() => setStep('setup')}
                   className="w-full rounded-2xl bg-slate-900 py-4 font-bold text-white transition-all hover:bg-slate-800"
                 >
-                  重新开始
+                  {t('interview.report.restart')}
                 </button>
               </div>
             </div>

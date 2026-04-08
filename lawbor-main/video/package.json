@@ -1,0 +1,17 @@
+{
+  "name": "simulation-call",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "laboris-web",
+    "laboris-api"
+  ],
+  "scripts": {
+    "web": "npm run dev --workspace=laboris-web",
+    "api": "npm run dev --workspace=laboris-api",
+    "dev": "concurrently -k \"npm run web\" \"npm run api\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
