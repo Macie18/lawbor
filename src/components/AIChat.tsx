@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, X, Send, ShieldCheck, Loader2 } from 'lucide-react';
+// 👇 新增 ExternalLink 和 MapPin 图标
+import { MessageSquare, X, Send, ShieldCheck, Loader2, ExternalLink, MapPin } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../lib/utils';
 import { useTranslation } from '../contexts/TranslationContext';
 import { llmService, LLMMessage } from '../services/llmService';
+// 👇 新增引入路由跳转钩子
+import { useNavigate } from 'react-router-dom';
 
 interface Message {
   role: 'user' | 'model' | 'system';
@@ -13,6 +16,7 @@ interface Message {
 }
 
 export default function AIChat() {
+  const navigate = useNavigate();
   const { t, language } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -44,14 +48,15 @@ export default function AIChat() {
         ? "你是一个专业的中国劳动法律助手，名叫 Lawbor。请基于中国劳动法提供专业、准确、客观的建议。回答要简洁、有帮助。"
         : "You are a professional Chinese labor law assistant named Lawbor. Please provide professional, accurate, and objective advice based on Chinese labor law. Keep your answers concise and helpful.";
 
-      const historyMessages: LLMMessage[] = [
-        { role: 'system', content: systemPrompt },
-        ...messages.filter(m => m.role !== 'system').map(m => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.text
-        })),
-        { role: 'user', content: userMessage }
-      ];
+        const historyMessages: LLMMessage[] = [
+          { role: 'system', content: systemPrompt },
+          ...messages.filter(m => m.role !== 'system').map(m => ({
+            // ✅ 强制将历史记录中的 model 转为 assistant，兼容 OpenAI 格式
+            role: m.role === 'model' ? 'assistant' : (m.role as 'user' | 'assistant'),
+            content: m.text
+          })),
+          { role: 'user', content: userMessage }
+        ];
 
       const responseText = await llmService.generateResponse(historyMessages, {
         temperature: 50,
@@ -125,9 +130,66 @@ export default function AIChat() {
                           : "bg-slate-100 text-slate-800 rounded-tl-none"
                       )}
                     >
-                      <div className="prose prose-sm prose-slate max-w-none dark:prose-invert">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
-                      </div>
+                      {(() => {
+  const text = msg.text;
+  
+  // 1. 使用正则表达式匹配所有的路由跳转和地图导航标签
+  const routeMatches = Array.from(text.matchAll(/\[跳转:([^|]+)\|([^\]]+)\]/g));
+  const mapMatches = Array.from(text.matchAll(/\[地图导航:([^\]]+)\]/g));
+  
+  // 2. 从展示给用户的纯文本中抹除这些标签
+  const cleanText = text
+    .replace(/\[跳转:[^\]]+\]/g, '')
+    .replace(/\[地图导航:[^\]]+\]/g, '');
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* 渲染干净的文本 */}
+      <div className="prose prose-sm prose-slate max-w-none dark:prose-invert">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanText}</ReactMarkdown>
+      </div>
+      
+      {/* 动态渲染所有的【功能跳转】卡片 */}
+      {routeMatches.length > 0 && (
+        <div className="flex flex-col gap-2 mt-1">
+          {routeMatches.map((match, idx) => (
+            <button
+              key={`route-${idx}`}
+              onClick={() => {
+                setIsOpen(false); // 点击后自动收起聊天框
+                navigate(match[1]); // 路由跳转到对应功能区
+              }}
+              className="flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-100 w-fit text-left shadow-sm border border-blue-100"
+            >
+              <ExternalLink className="h-4 w-4 shrink-0" />
+              {match[2]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 动态渲染所有的【地图导航】卡片 */}
+      {mapMatches.length > 0 && (
+        <div className="flex flex-col gap-2 mt-1">
+          {mapMatches.map((match, idx) => (
+            <button
+              key={`map-${idx}`}
+              onClick={() => {
+                // 利用高德地图通用 Web API 唤起搜索
+                const keyword = encodeURIComponent(match[1]);
+                window.open(`https://uri.amap.com/search?keyword=${keyword}`, '_blank');
+              }}
+              className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-100 w-fit text-left shadow-sm border border-emerald-100"
+            >
+              <MapPin className="h-4 w-4 shrink-0" />
+              在地图上查找: {match[1]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+})()}
                     </div>
                   )}
                 </div>

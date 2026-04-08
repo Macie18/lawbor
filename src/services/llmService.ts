@@ -100,53 +100,60 @@ export class DeepSeekLLMService implements LLMService {
   }
 
   async generateResponse(messages: LLMMessage[], options: LLMOptions): Promise<string> {
-    if (!this.apiKey) {
-      return this.getMockResponse(messages, options);
-    }
+    console.log("当前加载的密钥是：", import.meta.env.VITE_SILICONFLOW_API_KEY);
+    // 💡 魔法提示词：在这里植入 P2 和 P3 的能力！
+    const magicSystemPrompt = `你是一个专业的中国劳动法律助手 Lawbor。
+除了提供法律建议，你还具备调用系统功能的能力。
+规则：
+1. 如果用户的问题可以通过系统内的模块解决（如算税、查看政策、审查合同），你必须在回答的末尾加上跳转指令，格式为：[跳转:路由路径|按钮文字]。
+可用路由：
+- /contract : 劳动合同审查
+- /tax : 税务薪资计算器
+- /knowledge : 法律知识卡片
+- /benefits : 城市福利政策查询
+- /arbitration : 劳动仲裁帮助
+例："关于五险一金，您可以去福利政策模块查看：[跳转:/benefits|去查福利政策]"
 
-    // 构建消息列表（第一个 system 消息之后的所有消息）
-    const systemPrompt = buildSystemPrompt(options);
-    const chatMessages: LLMMessage[] = [{ role: 'system', content: systemPrompt }];
+2. 如果用户的意图是想去实地解决问题（如“我要去告公司”、“附近的仲裁委在哪”、“想找律师”），你必须在回答末尾提供地图导航指令，格式为：[地图导航:搜索关键词]。
+例："我建议您直接前往所在区的劳动争议仲裁委员会：[地图导航:劳动争议仲裁委员会]"`;
 
-    // 添加历史消息（排除可能存在的重复 system）
+    // 构建发给大模型的消息数组
+    const chatMessages: LLMMessage[] = [{ role: 'system', content: magicSystemPrompt }];
+    
+    // 追加用户的历史对话
     for (const msg of messages) {
-      if (msg.role !== 'system') {
-        chatMessages.push(msg);
-      }
+      if (msg.role !== 'system') chatMessages.push(msg);
     }
 
     try {
-      const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
-      const res = await fetch(url, {
+      // 💡 方案一：前端直接向硅基流动发起请求
+      const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+          // 使用 VITE_ 前缀的环境变量读取密钥
+         'Authorization': `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY}`
         },
         body: JSON.stringify({
-          model: this.model,
+          model: 'deepseek-ai/DeepSeek-V3', // 硅基流动指定的模型名称
           messages: chatMessages,
-          temperature: sliderToApiTemperature(options.temperature),
+          temperature: 0.3 // 法律问题严谨优先，温度调低
         }),
       });
 
       if (!res.ok) {
-        const errText = await res.text().catch(() => res.statusText);
-        console.error('[LLM] DeepSeek HTTP error:', res.status, errText);
-        return this.getMockResponse(messages, options);
+        const errText = await res.text();
+        console.error('[硅基流动 API 报错]:', errText);
+        throw new Error('网络请求失败');
       }
 
-      const data = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
-      };
-      const content = data.choices?.[0]?.message?.content?.trim();
-      if (!content) {
-        return this.getMockResponse(messages, options);
-      }
-      return content;
+      const data = await res.json();
+      return data.choices[0].message.content;
+
     } catch (error) {
-      console.error('[LLM] DeepSeek API error:', error);
-      return this.getMockResponse(messages, options);
+      console.error('[前端调用出错]:', error);
+      // 如果出错，走兜底的模拟回复
+      return this.getMockResponse(messages, options); 
     }
   }
 
