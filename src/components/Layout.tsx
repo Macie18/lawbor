@@ -17,7 +17,7 @@ export default function Layout() {
     { path: `/knowledge`, label: t('nav.knowledge'), icon: BookOpen },
     { path: `/arbitration`, label: t('nav.arbitration'), icon: Gavel },
     { path: `/benefits`, label: t('nav.benefits'), icon: Heart },
-    { path: `/interview`, label: '模拟面试', icon: MessageSquare },
+    { path: `/interview`, label: language === 'zh' ? '模拟面试' : 'Mock Interview', icon: MessageSquare },
   ];
 
   return (

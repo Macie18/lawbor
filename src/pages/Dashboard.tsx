@@ -5,7 +5,7 @@ import { IDENTITIES } from '../types';
 import { useTranslation } from '../contexts/TranslationContext';
 
 export default function Dashboard() {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const modules = [
     {
@@ -50,8 +50,10 @@ export default function Dashboard() {
     },
     {
       id: 'interview',
-      title: '1v1 模拟面试',
-      description: '针对校招、社招等不同场景，提供沉浸式 AI 模拟面试体验，实时反馈表现。',
+      title: language === 'zh' ? '1v1 模拟面试' : '1v1 Mock Interview',
+      description: language === 'zh' 
+        ? '针对校招、社招等不同场景，提供沉浸式 AI 模拟面试体验，实时反馈表现。' 
+        : 'Provide immersive AI mock interview experiences for various scenarios with real-time feedback.',
       icon: MessageSquare,
       color: 'bg-violet-500',
       path: '/interview',

@@ -43,7 +43,7 @@ const FILTER_OPTIONS: { key: FilterOption; label: { zh: string; en: string }; co
   { key: 'high', label: { zh: '高危', en: 'High' }, color: 'bg-red-500 hover:bg-red-600' },
   { key: 'medium', label: { zh: '中危', en: 'Medium' }, color: 'bg-amber-500 hover:bg-amber-600' },
   { key: 'low', label: { zh: '低危', en: 'Low' }, color: 'bg-blue-500 hover:bg-blue-600' },
-  { key: 'safe', label: { zh: '安全', en: 'Safe' }, color: 'bg-green-500 hover:bg-green-600' },
+//  { key: 'safe', label: { zh: '安全', en: 'Safe' }, color: 'bg-green-500 hover:bg-green-600' },
 ];
 
 export default function ContractReview() {
@@ -149,12 +149,16 @@ export default function ContractReview() {
     }
   };
 
-  // 根据过滤条件筛选风险卡片
-  const filteredRisks = useMemo(() => {
-    if (!result) return [];
-    if (activeFilter === 'all') return result.riskAssessments;
-    return result.riskAssessments.filter((r) => r.level === activeFilter);
-  }, [result, activeFilter]);
+// 根据过滤条件筛选风险卡片
+const filteredRisks = useMemo(() => {
+  if (!result) return [];
+  
+  // 💡 核心：先过滤掉所有 level 为 'safe' 的数据
+  const risksWithoutSafe = result.riskAssessments.filter((r) => r.level !== 'safe');
+
+  if (activeFilter === 'all') return risksWithoutSafe;
+  return risksWithoutSafe.filter((r) => r.level === activeFilter);
+}, [result, activeFilter]);
 
   // 渲染进度步骤条
   const renderProgressSteps = () => {
@@ -299,11 +303,12 @@ export default function ContractReview() {
       high: result.riskAssessments.filter((r) => r.level === 'high').length,
       medium: result.riskAssessments.filter((r) => r.level === 'medium').length,
       low: result.riskAssessments.filter((r) => r.level === 'low').length,
-      safe: result.riskAssessments.filter((r) => r.level === 'safe').length,
+     // safe: result.riskAssessments.filter((r) => r.level === 'safe').length,
     };
 
     return (
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      // 💡 注意这里：grid-cols-4 改成了 grid-cols-3
+      <div className="grid grid-cols-3 gap-3 mb-6">
         {Object.entries(stats).map(([level, count]) => (
           <button
             key={level}
@@ -314,16 +319,12 @@ export default function ContractReview() {
                   ? 'bg-red-500 text-white ring-2 ring-red-300'
                   : level === 'medium'
                   ? 'bg-amber-500 text-white ring-2 ring-amber-300'
-                  : level === 'low'
-                  ? 'bg-blue-500 text-white ring-2 ring-blue-300'
-                  : 'bg-green-500 text-white ring-2 ring-green-300'
+                  : 'bg-blue-500 text-white ring-2 ring-blue-300' // 这里简化了，去掉了 green
                 : level === 'high'
                 ? 'bg-red-50 text-red-700 hover:bg-red-100'
                 : level === 'medium'
                 ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                : level === 'low'
-                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                : 'bg-green-50 text-green-700 hover:bg-green-100'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100' // 这里简化了，去掉了 green
             }`}
           >
             <div className="text-2xl font-bold">{count}</div>

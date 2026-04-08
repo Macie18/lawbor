@@ -86,6 +86,8 @@ const FeatureSection = ({
 
 // 全局悬浮窗组件
 const FloatingButton = () => {
+  const navigate = useNavigate(); // 👈 新增这一行：初始化路由跳转钩子
+
   return (
     <div
       className="fixed top-6 right-6 z-[9999]"

@@ -1,8 +1,18 @@
 import mammoth from 'mammoth';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// 1. 获取当前环境实际运行的 pdfjs 版本 (比如你的环境里是 3.11.174)
+const pdfjsVersion = pdfjsLib.version;
+
+// 2. 动态判断后缀名：如果是 3.x 开头则使用 .js，否则使用 .mjs
+const workerExt = pdfjsVersion.startsWith('3') ? 'js' : 'mjs';
+
+// 3. 使用 jsdelivr NPM 镜像源，它与 node_modules 里的官方包结构完全一致
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.${workerExt}`;
 
 /**
  * 从文件中提取文本内容
- * 支持 PDF（通过 PDF.js CDN）和 DOCX 格式
+ * 支持 PDF 和 DOCX 格式
  */
 export async function extractTextFromFile(file: File): Promise<string> {
   const fileName = file.name.toLowerCase();
@@ -29,16 +39,10 @@ export async function extractTextFromFile(file: File): Promise<string> {
 }
 
 /**
- * 从 PDF 文件提取文本 - 使用动态加载
+ * 从 PDF 文件提取文本
  */
 async function extractTextFromPDF(file: File): Promise<string> {
   try {
-    // 动态导入 pdfjs-dist
-    const pdfjsLib = await import('pdfjs-dist');
-
-    // 设置 worker - 使用版本化的 CDN
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs`;
-
     const arrayBuffer = await file.arrayBuffer();
     console.log('[FileParser] PDF arrayBuffer 长度:', arrayBuffer.byteLength);
 

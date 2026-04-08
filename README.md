@@ -136,3 +136,118 @@ MIT
                                                                                                                                          
   lsof -ti:3000,24678 | xargs kill -9 2>/dev/null; npm run dev                                                                           
                                                
+
+                                      
+
+ ### 启动开发服务器
+     ...
+      65   
+      66  访问 http://localhost:5173
+      67   
+      68 +### 杀掉占用端口的进程                                                                                                      
+      69 +                                                                                                                            
+      70 +如果端口被占用，先杀掉进程：                                                                                                
+      71 +                                                                                                                            
+      72 +```bash                                                                                                                     
+      73 +# 查找占用端口的进程                                                                                                        
+      74 +lsof -ti:3000 | xargs kill -9 2>/dev/null                                                                                   
+      75 +lsof -ti:5173 | xargs kill -9 2>/dev/null                                                                                   
+      76 +                                                                                                                            
+      77 +# 或者一次性杀掉多个端口                                                                                                    
+      78 +npx kill-port 3000 5173 && npm run dev                                                                                      
+      79 +                                                                                                                            
+      80 +# 或者直接                                                                                                                  
+      81 +lsof -ti:3000,5173 | xargs kill -9 2>/dev/null; npm run dev                                                                 
+      82 +```                                                                                                                         
+      83 +                                                                                                                            
+      84  ### 构建生产版本
+      85   
+      86  ```bash
+     ...
+       73   
+       74  ---
+       75   
+       76 +## 推送代码到 GitHub                                                                                                       
+       77 +                                                                                                                           
+       78 +### 提交更改                                                                                                               
+       79 +                                                                                                                           
+       80 +```bash                                                                                                                    
+       81 +# 查看更改状态                                                                                                             
+       82 +git status                                                                                                                 
+       83 +                                                                                                                           
+       84 +# 添加需要提交的文件                                                                                                       
+       85 +git add src/pages/KnowledgeCards.tsx                                                                                       
+       86 +                                                                                                                           
+       87 +# 提交更改                                                                                                                 
+       88 +git commit -m "feat: 添加知识卡片中英文双语支持"                                                                           
+       89 +                                                                                                                           
+       90 +# 推送到远程                                                                                                               
+       91 +git push                                                                                                                   
+       92 +```                                                                                                                        
+       93 +                                                                                                                           
+       94 +### 如果远程有更新需要先 pull                                                                                              
+       95 +                                                                                                                           
+       96 +```bash                                                                                                                    
+       97 +# 先 stash 本地更改                                                                                                        
+       98 +git stash                                                                                                                  
+       99 +                                                                                                                           
+      100 +# 拉取远程更新                                                                                                             
+      101 +git pull --rebase                                                                                                          
+      102 +                                                                                                                           
+      103 +# 恢复本地更改                                                                                                             
+      104 +git stash pop                                                                                                              
+      105 +                                                                                                                           
+      106 +# 推送                                                                                                                     
+      107 +git push                                                                                                                   
+      108 +```                                                                                                                        
+      109 +                                                                                                                           
+      110 +---                                                                                                                        
+      111 +                                                                                                                           
+      112  ## 项目结构
+      113   
+      114  ```
+     ...
+      87  │   ├── Arbitration/       # 劳动仲裁
+      88  │   └── Interview/         # AI 面试模拟
+      89  ├── services/
+      90 -│   └── llmService.ts      # AI 服务封装                                                                                    
+      90 +│   ├── llmService.ts      # DeepSeek AI 服务封装                                                                           
+      91 +│   └── contractReviewService.ts # 合同审查服务 (Dify API)                                                                  
+      92  ├── components/            # 公共组件
+      93  └── public/
+      94      └── policies/          # 城市政策文件
+     ...
+       95   
+       96  ---
+       97   
+       98 +## 合同审查功能说明                                                                                                        
+       99 +                                                                                                                           
+      100 +### 支持格式                                                                                                               
+      101 +- PDF 文件（文字版，非扫描版）                                                                                             
+      102 +- DOCX 文件                                                                                                                
+      103 +                                                                                                                           
+      104 +### 工作流程                                                                                                               
+      105 +1. 用户上传合同文件 (PDF/DOCX)                                                                                             
+      106 +2. 前端提取文件文字内容                                                                                                    
+      107 +3. 调用 Dify AI Agent API 分析合同                                                                                         
+      108 +4. 返回风险评估结果（高/中/低风险）                                                                                        
+      109 +                                                                                                                           
+      110 +### 风险等级                                                                                                               
+      111 +- **高风险 (high)**: 严重违法，需立即关注                                                                                  
+      112 +- **中风险 (medium)**: 存在风险，建议谈判                                                                                  
+      113 +- **低风险 (low)**: 关注点，有改进空间                                                                                     
+      114 +                                                                                                                           
+      115 +---                                                                                                                        
+      116 +                                                                                                                           
+      117 +## AI 对话功能说明                                                                                                         
+      118 +                                                                                                                           
+      119 +### 工作流程                                                                                                               
+      120 +1. 用户发送消息                                                                                                            
+      121 +2. 前端调用 DeepSeek API                                                                                                   
+      122 +3. 返回 AI 回答                                                                                                            
+      123 +                                                                                                                           
+      124 +### 配置                                                                                                                   
+      125 +确保 `.env` 文件中有 `VITE_DEEPSEEK_API_KEY`                                                                               
+      126 +                                                                                                                           
+      127 +---                                                                                                                        
+      128 +                                       
