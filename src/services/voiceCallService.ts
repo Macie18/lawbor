@@ -42,7 +42,7 @@ export class VoiceCallService {
       const userText = await this.stt.transcribe(fullBuffer);
       if (userText) {
         this.history.push({ role: 'user', content: userText });
-        const aiText = await this.llm.generateResponse(this.history);
+        const aiText = await this.llm.generateResponse(this.history, { temperature: 0.7 });
         this.history.push({ role: 'assistant', content: aiText });
         const audio = await this.tts.synthesize(aiText);
         return { text: aiText, audio };
