@@ -59,6 +59,8 @@ export default function ContractReview() {
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
   const [streamingText, setStreamingText] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
+  const [inputMode, setInputMode] = useState<'file' | 'text'>('file');
+  const [textInput, setTextInput] = useState('');
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -70,6 +72,7 @@ export default function ContractReview() {
     setActiveFilter('all');
     setStreamingText('');
     setParseError(null);
+    setTextInput('');
 
     try {
       // 第一步：解析文件提取文本
@@ -113,6 +116,34 @@ export default function ContractReview() {
         message: userMessage,
         progress: 0,
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 文本输入模式分析
+  const handleTextAnalyze = async () => {
+    if (!textInput.trim()) return;
+    
+    setLoading(true);
+    setResult(null);
+    setParseError(null);
+    setFile(null);
+    
+    try {
+      setProgress({ step: 'extracting', message: '正在分析文本...', progress: 10 });
+      
+      await runContractReview(
+        textInput,
+        (p) => setProgress(p),
+        (text) => setStreamingText(text)
+      ).then((reviewResult) => {
+        setResult(reviewResult);
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setParseError(errorMessage);
+      setProgress({ step: 'error', message: errorMessage, progress: 0 });
     } finally {
       setLoading(false);
     }
@@ -334,6 +365,23 @@ export default function ContractReview() {
 
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-1">
+          {/* 输入模式切换 */}
+          <div className="mb-4 flex rounded-xl bg-slate-100 p-1">
+            <button
+              onClick={() => { setInputMode('file'); setFile(null); setTextInput(''); setResult(null); setParseError(null); }}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${inputMode === 'file' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+            >
+              {language === 'zh' ? '📄 文件上传' : '📄 File Upload'}
+            </button>
+            <button
+              onClick={() => { setInputMode('text'); setFile(null); setTextInput(''); setResult(null); setParseError(null); }}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${inputMode === 'text' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+            >
+              {language === 'zh' ? '✏️ 文本输入' : '✏️ Text Input'}
+            </button>
+          </div>
+
+          {inputMode === 'file' ? (
           <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-8 text-center transition-colors hover:border-blue-400">
             <input
               type="file"
@@ -356,7 +404,34 @@ export default function ContractReview() {
               <p className="text-xs text-slate-400">{t('contract.support')}</p>
             </label>
           </div>
-
+           ) : (
+            // 文本输入模式
+            <div className="rounded-3xl border-2 border-slate-200 bg-white p-6">
+              <textarea
+                className="w-full h-64 p-4 border border-slate-200 rounded-xl resize-none focus:border-blue-500 focus:outline-none"
+                placeholder={language === 'zh' ? '请粘贴劳动合同文本内容...' : 'Please paste contract text here...'}
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                disabled={loading}
+              />
+              <button
+                onClick={handleTextAnalyze}
+                disabled={loading || !textInput.trim()}
+                className="mt-4 w-full rounded-xl bg-blue-600 py-3 font-bold text-white transition-all hover:bg-blue-700
+disabled:opacity-50"
+              >
+                {loading ? (
+                  <><Loader2 className="inline h-5 w-5 animate-spin mr-2" />{language === 'zh' ? '分析中...' : 'Analyzing...'}</>
+                ) : (
+                  <>{language === 'zh' ? '🔍 开始分析' : '🔍 Start Analysis'}</>
+                )}
+              </button>
+              <p className="mt-3 text-xs text-slate-400 text-center">
+                {language === 'zh' ? '或使用上方"文件上传"直接上传 PDF/Word 文档' : 'Or use "File Upload" above to upload PDF/Word'}
+              </p>
+            </div>
+          )}
+          
           <div className="mt-6 space-y-4">
             <div className="flex items-start gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
               <AlertTriangle className="h-5 w-5 shrink-0" />
