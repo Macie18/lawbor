@@ -217,7 +217,7 @@ export class DeepSeekLLMService implements LLMService {
     }
 
     try {
-      const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      const res = await fetch(openAiCompatibleChatUrl(this.baseUrl), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
