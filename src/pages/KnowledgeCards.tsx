@@ -1,3 +1,6 @@
+import { useAuth } from '../contexts/AuthContext';
+import { useFavorites } from '../hooks/useFavorites';
+import { Heart } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookOpen, Search, Bookmark, Share2, HelpCircle, Sparkles, MessageCircle } from 'lucide-react';
@@ -137,6 +140,11 @@ const flashcards = {
 
 export default function KnowledgeCards() {
   const { t, language } = useTranslation();
+  // ✅ 新增：用户认证和收藏状态
+  const { user } = useAuth();
+  const { favorites, isFavorited, toggleFavorite } = useFavorites();
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  
   const { setIsOpen, setInitialMessage } = useAIChat();
   const [activeTab, setActiveTab] = useState<'expert' | 'qa'>('expert');
   const [activeCategory, setActiveCategory] = useState(t('knowledge.all'));

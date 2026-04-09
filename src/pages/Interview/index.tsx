@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, PhoneOff, User, ShieldCheck, AlertCircle, ArrowRight, Settings2, Camera, CameraOff, Loader2, Activity, Volume2, VolumeX } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, User, ShieldCheck, AlertCircle, ArrowRight, Settings2, Camera, CameraOff, Loader2, Activity, Volume2, VolumeX, FileText } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useSpeechDictation } from '../../hooks/useSpeechDictation';
@@ -8,6 +8,9 @@ import { useAiSpeakLevel } from '../../hooks/useAiSpeakLevel';
 import { cancelBrowserSpeech, isBrowserTtsSupported, speakWithBrowser } from '../../utils/browserTts';
 import { llmService, type LLMMessage } from '../../services/llmService';
 import { InterviewFloatingOrb } from '../../components/InterviewFloatingOrb';
+import { ResumeClinic } from '../../components/ResumeClinic';
+import type { ResumeAnalysis } from '../../services/resumeAnalysisService';
+import { generateResumePrompt } from '../../services/resumeAnalysisService';
 
 interface InterviewReport {
   score: number;
@@ -192,6 +195,11 @@ export default function Interview() {
   const voiceSessionActiveRef = useRef(false);
   const isMutedRef = useRef(false);
   const isThinkingRef = useRef(false);
+  
+  // 简历相关状态
+  const [resumeAnalysis, setResumeAnalysis] = useState<ResumeAnalysis | null>(null);
+  const [resumeText, setResumeText] = useState<string>('');
+  const resumeAnalysisRef = useRef<ResumeAnalysis | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -209,6 +217,13 @@ export default function Interview() {
   useEffect(() => {
     isThinkingRef.current = isThinking;
   }, [isThinking]);
+
+  // 简历分析完成回调
+  const handleResumeAnalysisComplete = useCallback((analysis: ResumeAnalysis, text: string) => {
+    setResumeAnalysis(analysis);
+    setResumeText(text);
+    resumeAnalysisRef.current = analysis;
+  }, []);
 
   /** 连续对话开启且未静音时，才向本页传入麦克风音频（硬件轨道关闭 + 停止识别，浏览器侧无法再拾取本轮流上的声音） */
   useEffect(() => {
@@ -279,6 +294,9 @@ export default function Interview() {
           role: 'hr',
           scenario: 'law_campus',
           locale: language,
+          resumePrompt: resumeAnalysisRef.current 
+            ? generateResumePrompt(resumeAnalysisRef.current, language) 
+            : undefined,
         },
       );
 
@@ -520,17 +538,54 @@ export default function Interview() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-auto max-w-2xl rounded-[40px] border border-slate-200 bg-white p-8 shadow-xl sm:p-12"
+          className="space-y-6"
         >
-          <div className="mb-8 flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-600">
-              <Settings2 className="h-6 w-6" />
+          {/* 简历诊所区域 */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="rounded-[40px] border border-slate-200 bg-white p-8 shadow-xl"
+          >
+            <div className="mb-6 flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                <FileText className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">{t('resume.title')}</h3>
+                <p className="text-sm text-slate-500">{t('resume.subtitle')}</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xl font-bold">{t('interview.setup.personalityTitle')}</h3>
-              <p className="text-sm text-slate-500">{t('interview.setup.personalityDesc')}</p>
+
+            <ResumeClinic 
+              onAnalysisComplete={handleResumeAnalysisComplete}
+              compact={false}
+            />
+
+            {resumeAnalysis && (
+              <div className="mt-4 flex items-center gap-2 text-sm text-emerald-600">
+                <ShieldCheck className="h-4 w-4" />
+                {t('resume.enableInterview')}
+              </div>
+            )}
+          </motion.div>
+
+          {/* 面试官性格设置区域 */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="rounded-[40px] border border-slate-200 bg-white p-8 shadow-xl"
+          >
+            <div className="mb-8 flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-600">
+                <Settings2 className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">{t('interview.setup.personalityTitle')}</h3>
+                <p className="text-sm text-slate-500">{t('interview.setup.personalityDesc')}</p>
+              </div>
             </div>
-          </div>
 
           <div className="mb-12 space-y-8">
             <div className="space-y-4">
@@ -560,14 +615,19 @@ export default function Interview() {
               </p>
             </div>
           </div>
+          </motion.div>
 
-          <button
+          {/* 开始面试按钮 */}
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
             onClick={startInterview}
             className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 text-lg font-bold text-white transition-all hover:bg-blue-700 active:scale-95"
           >
             {t('interview.start')}
             <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-          </button>
+          </motion.button>
         </motion.div>
       )}
 

@@ -1,17 +1,24 @@
 import { Outlet, useParams, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
-import { Home as HomeIcon, MessageSquare, ChevronLeft, LayoutDashboard, FileText, Calculator, BookOpen, Gavel, Heart, Globe, Video, Sparkles } from 'lucide-react';
+import { Home as HomeIcon, MessageSquare, ChevronLeft, LayoutDashboard, FileText, Calculator, BookOpen, Gavel, Heart, Globe, Video, Sparkles, LogIn } from 'lucide-react';
 import { IDENTITIES } from '../types';
 import AIChat from './AIChat';
 import FirstVisitGuide from './FirstVisitGuide';
+import AuthModal from './AuthModal';
+import UserMenu from './UserMenu';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useAIChat } from '../contexts/AIChatContext';
+import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
+import { useState } from 'react';
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, language, setLanguage } = useTranslation();
   const { setIsOpen } = useAIChat();
+  const { user, loading } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   const navItems = [
     { path: `/dashboard`, label: t('nav.dashboard'), icon: LayoutDashboard },
@@ -42,6 +49,24 @@ export default function Layout() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* 用户菜单或登录按钮 */}
+            {loading ? (
+              <div className="h-10 w-24 animate-pulse rounded-xl bg-gray-200" />
+            ) : user ? (
+              <UserMenu />
+            ) : (
+              <button
+                onClick={() => {
+                  setAuthMode('login');
+                  setShowAuthModal(true);
+                }}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-green-700 px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl active:scale-95"
+              >
+                <LogIn className="h-4 w-4" />
+                <span className="hidden sm:inline">{language === 'zh' ? '登录' : 'Login'}</span>
+              </button>
+            )}
+
             {/* AI助手按钮 */}
             <button
               onClick={() => setIsOpen(true)}
@@ -96,6 +121,13 @@ export default function Layout() {
 
       <AIChat />
       <FirstVisitGuide />
+      
+      {/* 认证模态框 */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        initialMode={authMode}
+      />
     </div>
   );
 }

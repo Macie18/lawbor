@@ -1,16 +1,16 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useTaxCalculations } from '../hooks/useTaxCalculations';
+import { History, Trash2, Save, FileDown } from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Calculator, 
-  PieChart as PieChartIcon, 
   Info, 
   AlertCircle, 
-  ChevronRight, 
   TrendingUp, 
   ShieldCheck, 
   Coins, 
   ArrowLeftRight,
-  Download,
   Share2
 } from 'lucide-react';
 import { 
@@ -40,11 +40,15 @@ import {
   SOCIAL_RATES
 } from '../lib/taxUtils';
 import { cn } from '../lib/utils';
+import { generateTaxReportPdf, type TaxReportData } from '../services/taxReportPdf';
 
 type TaxTab = 'monthly' | 'bonus' | 'reverse' | 'social' | 'annual';
 
 export default function TaxCalculator() {
   const { t, language } = useTranslation();
+    // ✅ 新增：用户认证和计算记录状态
+  const { user } = useAuth();
+  const { calculations, saveCalculation, deleteCalculation } = useTaxCalculations();
   const [activeTab, setActiveTab] = useState<TaxTab>('monthly');
   
   // Input States
@@ -65,6 +69,9 @@ export default function TaxCalculator() {
     elderlySupport: 0,
     elderlyType: 'none'
   });
+
+  // PDF导出状态
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   // Results
   const monthlyResult = useMemo(() => {
@@ -107,11 +114,91 @@ export default function TaxCalculator() {
     { id: 'annual', label: t('tax.tabs.annual'), icon: TrendingUp },
   ];
 
+  // ✅ 新增：保存计算结果的方法
+  const handleSaveCalculation = async () => {
+    if (!user) return;
+    
+    const result = activeTab === 'monthly' ? monthlyResult :
+                   activeTab === 'bonus' ? bonusResults.separate :
+                   activeTab === 'social' ? socialResult :
+                   activeTab === 'reverse' ? { netIncome: reverseResult, monthlyTax: 0 } :
+                   monthlyResult;
+    
+    const incomeType = activeTab === 'monthly' ? '月薪计算' :
+                       activeTab === 'bonus' ? '年终奖计算' :
+                       activeTab === 'social' ? '社保计算' :
+                       activeTab === 'reverse' ? '反推税前' :
+                       '年度估算';
+    
+    await saveCalculation(
+      incomeType,
+      activeTab === 'reverse' ? reverseResult : salary,
+      activeTab === 'monthly' || activeTab === 'annual' ? monthlyResult.monthlyTax : 
+        activeTab === 'bonus' ? bonusResults.separate.tax : 0,
+      activeTab === 'reverse' ? targetNet : 
+        activeTab === 'monthly' ? monthlyResult.netIncome :
+        activeTab === 'bonus' ? bonusResults.separate.netBonus :
+        activeTab === 'social' ? socialResult.totalPersonal : reverseResult,
+      monthlyResult.specialDeduction
+    );
+  };
+
+  // ✅ 新增：导出完整PDF报告
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const reportData: TaxReportData = {
+        salary,
+        bonus,
+        targetNet,
+        selectedCity,
+        customFundRate,
+        deductions,
+        monthlyResult,
+        bonusResults,
+        reverseResult,
+        socialResult,
+        language,
+      };
+      generateTaxReportPdf(reportData);
+    } catch (error) {
+      console.error('PDF导出失败:', error);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-8">
-        <h2 className="mb-2 text-3xl font-bold text-slate-900">{t('tax.title')}</h2>
-        <p className="text-slate-500">{t('tax.desc')}</p>
+      <header className="mb-8 flex items-start justify-between">
+        <div>
+          <h2 className="mb-2 text-3xl font-bold text-slate-900">{t('tax.title')}</h2>
+          <p className="text-slate-500">{t('tax.desc')}</p>
+        </div>
+        
+        {/* 导出PDF按钮 */}
+        <button
+          onClick={handleExportPdf}
+          disabled={isExportingPdf}
+          className={cn(
+            "flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-all",
+            isExportingPdf
+              ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+              : "bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 shadow-lg shadow-emerald-600/20"
+          )}
+        >
+          {isExportingPdf ? (
+            <>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              {t('tax.exporting')}
+            </>
+          ) : (
+            <>
+              <FileDown className="h-4 w-4" />
+              {t('tax.exportPdf')}
+            </>
+          )}
+        </button>
       </header>
 
       {/* Tabs */}
@@ -311,6 +398,18 @@ export default function TaxCalculator() {
             >
               {/* Result Summary Card */}
               <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm overflow-hidden relative">
+                {/* ✅ 新增：保存按钮（仅登录用户显示） */}
+                {user && (
+                  <div className="absolute top-4 right-4">
+                    <button
+                      onClick={handleSaveCalculation}
+                      className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 transition-colors"
+                    >
+                      <Save className="h-4 w-4" />
+                      {language === 'zh' ? '保存记录' : 'Save'}
+                    </button>
+                  </div>
+                )}
                 <div className="absolute top-0 right-0 p-4">
                   <button className="text-slate-300 hover:text-blue-600 transition-colors">
                     <Share2 className="h-5 w-5" />
@@ -428,24 +527,24 @@ export default function TaxCalculator() {
 
                     <div className="space-y-4">
                       <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50">
-                        <span className="text-sm font-bold text-slate-600">Pension</span>
+                        <span className="text-sm font-bold text-slate-600">{t('tax.social.pension')}</span>
                         <div className="text-right">
                           <p className="text-sm font-black text-slate-900">¥{socialResult.personal.pension.toLocaleString()}</p>
-                          <p className="text-[10px] text-slate-400">Company: ¥{socialResult.company.pension.toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-400">{t('tax.social.company')}: ¥{socialResult.company.pension.toLocaleString()}</p>
                         </div>
                       </div>
                       <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50">
-                        <span className="text-sm font-bold text-slate-600">Medical</span>
+                        <span className="text-sm font-bold text-slate-600">{t('tax.social.medical')}</span>
                         <div className="text-right">
                           <p className="text-sm font-black text-slate-900">¥{socialResult.personal.medical.toLocaleString()}</p>
-                          <p className="text-[10px] text-slate-400">Company: ¥{socialResult.company.medical.toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-400">{t('tax.social.company')}: ¥{socialResult.company.medical.toLocaleString()}</p>
                         </div>
                       </div>
                       <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50">
-                        <span className="text-sm font-bold text-slate-600">Provident Fund</span>
+                        <span className="text-sm font-bold text-slate-600">{t('tax.social.fund')}</span>
                         <div className="text-right">
                           <p className="text-sm font-black text-slate-900">¥{socialResult.personal.fund.toLocaleString()}</p>
-                          <p className="text-[10px] text-slate-400">Company: ¥{socialResult.company.fund.toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-400">{t('tax.social.company')}: ¥{socialResult.company.fund.toLocaleString()}</p>
                         </div>
                       </div>
                     </div>
@@ -457,7 +556,10 @@ export default function TaxCalculator() {
                     <p className="mb-1 text-sm font-medium text-slate-500">{t('tax.input.gross')}</p>
                     <h3 className="text-6xl font-black text-blue-600">¥{reverseResult.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h3>
                     <div className="mx-auto max-w-xs p-4 rounded-2xl bg-blue-50 text-blue-800 text-sm">
-                      <p>To get a net income of <b>¥{targetNet.toLocaleString()}</b>, your gross salary should be approximately <b>¥{reverseResult.toLocaleString(undefined, { maximumFractionDigits: 0 })}</b>.</p>
+                      <p>{t('tax.reverse.hint')
+                        .replace('{{targetNet}}', targetNet.toLocaleString())
+                        .replace('{{gross}}', reverseResult.toLocaleString(undefined, { maximumFractionDigits: 0 }))}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -465,21 +567,21 @@ export default function TaxCalculator() {
                 {activeTab === 'annual' && (
                   <div className="space-y-8">
                     <div className="text-center">
-                      <p className="mb-1 text-sm font-medium text-slate-500">Estimated Annual Net Income</p>
+                      <p className="mb-1 text-sm font-medium text-slate-500">{t('tax.annual.estimatedNet')}</p>
                       <h3 className="text-5xl font-black text-blue-600">¥{(monthlyResult.netIncome * 12).toLocaleString()}</h3>
                     </div>
 
                     <div className="space-y-4">
                       <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50">
-                        <span className="text-sm font-bold text-slate-600">Annual Gross</span>
+                        <span className="text-sm font-bold text-slate-600">{t('tax.annual.gross')}</span>
                         <span className="text-sm font-black text-slate-900">¥{(salary * 12).toLocaleString()}</span>
                       </div>
                       <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50">
-                        <span className="text-sm font-bold text-slate-600">Annual Social Security</span>
+                        <span className="text-sm font-bold text-slate-600">{t('tax.annual.social')}</span>
                         <span className="text-sm font-black text-slate-900">¥{(monthlyResult.socialInsurance * 12).toLocaleString()}</span>
                       </div>
                       <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50">
-                        <span className="text-sm font-bold text-slate-600">Annual Tax</span>
+                        <span className="text-sm font-bold text-slate-600">{t('tax.annual.tax')}</span>
                         <span className="text-sm font-black text-rose-500">¥{(monthlyResult.cumulativeTax).toLocaleString()}</span>
                       </div>
                     </div>
@@ -504,18 +606,18 @@ export default function TaxCalculator() {
                   {monthlyResult.taxRate > 0.1 && (
                     <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 text-sm text-slate-600">
                       <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600" />
-                      <p>Your tax rate is { (monthlyResult.taxRate * 100).toFixed(0) }%. Consider maximizing special deductions to lower your taxable income.</p>
+                      <p>{t('tax.optimization.rateHint').replace('{{rate}}', (monthlyResult.taxRate * 100).toFixed(0))}</p>
                     </div>
                   )}
                   {activeTab === 'bonus' && bonusResults.trap && (
                     <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 text-sm text-amber-800">
                       <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-600" />
-                      <p>Adjust your bonus amount slightly to avoid the "Tax Trap" where a small increase in gross bonus leads to a large decrease in net bonus.</p>
+                      <p>{t('tax.optimization.trapHint')}</p>
                     </div>
                   )}
                   <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 text-sm text-slate-600">
                     <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600" />
-                    <p>Annual tax reconciliation (March-June) may result in a tax refund if you have unused deductions or multiple income sources.</p>
+                    <p>{t('tax.optimization.annualHint')}</p>
                   </div>
                 </div>
               </div>
@@ -523,6 +625,52 @@ export default function TaxCalculator() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* ✅ 新增：历史计算记录列表（仅登录用户显示） */}
+      {user && calculations.length > 0 && (
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+            <History className="h-6 w-6 text-blue-600" />
+            {language === 'zh' ? '历史计算记录' : 'Calculation History'}
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {calculations.map(calc => (
+              <div key={calc.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900">{calc.income_type}</p>
+                    <div className="mt-2 space-y-1 text-sm">
+                      <p className="text-gray-600">
+                        {language === 'zh' ? '税前收入' : 'Gross'}: ¥{calc.gross_income.toLocaleString()}
+                      </p>
+                      <p className="text-gray-600">
+                        {language === 'zh' ? '扣除额' : 'Deductions'}: ¥{calc.deductions.toLocaleString()}
+                      </p>
+                      <p className="text-orange-600 font-medium">
+                        {language === 'zh' ? '税费' : 'Tax'}: ¥{calc.tax_amount.toLocaleString()}
+                      </p>
+                      <p className="text-green-600 font-bold">
+                        {language === 'zh' ? '税后收入' : 'Net Income'}: ¥{calc.net_income.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => deleteCalculation(calc.id)}
+                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    title={language === 'zh' ? '删除' : 'Delete'}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-3">
+                  {new Date(calc.created_at).toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

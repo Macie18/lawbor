@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-// 👇 新增 ExternalLink 和 MapPin 图标
-import { MessageSquare, X, Send, ShieldCheck, Loader2, ExternalLink, MapPin } from 'lucide-react';
+import { MessageSquare, X, Send, ShieldCheck, Loader2, ExternalLink, MapPin, History, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../lib/utils';
 import { useTranslation } from '../contexts/TranslationContext';
 import { llmService, LLMMessage } from '../services/llmService';
-// 👇 新增引入路由跳转钩子
 import { useNavigate } from 'react-router-dom';
-// 👇 新增引入全局状态
 import { useAIChat } from '../contexts/AIChatContext';
+// ✅ 新增：导入认证和数据持久化 Hook
+import { useAuth } from '../contexts/AuthContext';
+import { useConversationHistory } from '../hooks/useConversationHistory';
 
 interface Message {
   role: 'user' | 'model' | 'system';
@@ -25,6 +25,17 @@ export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // ✅ 新增：用户认证和对话历史状态
+  const { user } = useAuth();
+  const { 
+    conversations, 
+    createConversation, 
+    updateConversation, 
+    deleteConversation 
+  } = useConversationHistory();
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     setMessages([{ role: 'model', text: t('chat.welcome') }]);
@@ -44,7 +55,8 @@ export default function AIChat() {
     }
   }, [messages, loading]);
 
-  const handleSend = async (overrideInput?: string) => {
+
+ const handleSend = async (overrideInput?: string) => {
     const userMessage = overrideInput || input.trim();
     if (!userMessage && !overrideInput) return;
     if (loading) return;
@@ -58,15 +70,14 @@ export default function AIChat() {
         ? "你是一个专业的中国劳动法律助手，名叫 Lawbor。请基于中国劳动法提供专业、准确、客观的建议。回答要简洁、有帮助。"
         : "You are a professional Chinese labor law assistant named Lawbor. Please provide professional, accurate, and objective advice based on Chinese labor law. Keep your answers concise and helpful.";
 
-        const historyMessages: LLMMessage[] = [
-          { role: 'system', content: systemPrompt },
-          ...messages.filter(m => m.role !== 'system').map(m => ({
-            // ✅ 强制将历史记录中的 model 转为 assistant，兼容 OpenAI 格式
-            role: m.role === 'model' ? 'assistant' : (m.role as 'user' | 'assistant'),
-            content: m.text
-          })),
-          { role: 'user', content: userMessage }
-        ];
+      const historyMessages: LLMMessage[] = [
+        { role: 'system', content: systemPrompt },
+        ...messages.filter(m => m.role !== 'system').map(m => ({
+          role: m.role === 'model' ? 'assistant' : (m.role as 'user' | 'assistant'),
+          content: m.text
+        })),
+        { role: 'user', content: userMessage }
+      ];
 
       const responseText = await llmService.generateResponse(historyMessages, {
         temperature: 50,
@@ -75,6 +86,31 @@ export default function AIChat() {
       });
 
       setMessages(prev => [...prev, { role: 'model', text: responseText }]);
+      
+      // ✅ 新增：保存对话历史到数据库（仅登录用户）
+      if (user) {
+        const allMessages = [
+          ...messages.map(m => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.text,
+            timestamp: new Date().toISOString()
+          })),
+          { role: 'user' as const, content: userMessage, timestamp: new Date().toISOString() },
+          { role: 'assistant' as const, content: responseText, timestamp: new Date().toISOString() }
+        ];
+        
+        if (!currentConversationId) {
+          // 创建新对话
+          const conversation = await createConversation(
+            userMessage.slice(0, 50) + '...',
+            allMessages
+          );
+          setCurrentConversationId(conversation?.id || null);
+        } else {
+          // 更新现有对话
+          await updateConversation(currentConversationId, allMessages);
+        }
+      }
     } catch (error) {
       console.error('AI Chat Error:', error);
       const errorMsg = language === 'zh'
@@ -83,6 +119,36 @@ export default function AIChat() {
       setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);
     } finally {
       setLoading(false);
+    }
+  };
+  // ✅ 新增：加载历史对话
+  const loadHistoryConversation = (conversationId: string) => {
+    const conversation = conversations.find(c => c.id === conversationId);
+    if (conversation) {
+      setMessages(conversation.messages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : m.role,
+        text: m.content
+      })));
+      setCurrentConversationId(conversationId);
+      setShowHistory(false);
+    }
+  };
+
+  // ✅ 新增：开始新对话
+  const startNewConversation = () => {
+    setMessages([{ role: 'model', text: t('chat.welcome') }]);
+    setCurrentConversationId(null);
+    setShowHistory(false);
+  };
+
+  // ✅ 新增：删除历史对话
+  const handleDeleteConversation = async (e: React.MouseEvent, conversationId: string) => {
+    e.stopPropagation();
+    if (confirm(language === 'zh' ? '确定删除这个对话吗？' : 'Delete this conversation?')) {
+      await deleteConversation(conversationId);
+      if (currentConversationId === conversationId) {
+        startNewConversation();
+      }
     }
   };
 
@@ -127,6 +193,56 @@ export default function AIChat() {
                 <X className="h-5 w-5" />
               </button>
             </header>
+
+            {/* ✅ 新增：历史对话面板 */}
+            {user && conversations.length > 0 && (
+              <div className="border-b border-gray-200 bg-slate-50">
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  <span className="flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    {language === 'zh' ? '历史对话' : 'History'}
+                  </span>
+                  <span className="text-xs text-slate-500">({conversations.length})</span>
+                </button>
+                
+                {showHistory && (
+                  <div className="max-h-48 overflow-y-auto border-t border-gray-200">
+                    {conversations.map(conv => (
+                      <div
+                        key={conv.id}
+                        onClick={() => loadHistoryConversation(conv.id)}
+                        className={cn(
+                          "flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100",
+                          currentConversationId === conv.id && "bg-blue-100"
+                        )}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-slate-700 truncate">{conv.title}</p>
+                          <p className="text-xs text-slate-400">
+                            {new Date(conv.updated_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={(e) => handleDeleteConversation(e, conv.id)}
+                          className="ml-2 p-1 text-slate-400 hover:text-red-500"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={startNewConversation}
+                      className="w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 text-center"
+                    >
+                      {language === 'zh' ? '+ 新对话' : '+ New Chat'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((msg, i) => (
@@ -236,9 +352,15 @@ export default function AIChat() {
                   <Send className="h-5 w-5" />
                 </button>
               </div>
-              <p className="mt-2 text-center text-[10px] text-slate-400">
-                {t('chat.disclaimer')}
-              </p>
+              <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                <p>{t('chat.disclaimer')}</p>
+                {user && (
+                  <p className="flex items-center gap-1">
+                    <History className="h-3 w-3" />
+                    {language === 'zh' ? '已登录' : 'Logged in'}
+                  </p>
+                )}
+              </div>
             </footer>
           </motion.div>
         )}

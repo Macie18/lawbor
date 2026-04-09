@@ -16,6 +16,8 @@ export interface LLMOptions {
   scenario?: string;
   /** 模拟面试等场景：英文界面用 en，使面试官台词与 AI 回复为英文 */
   locale?: ReportLocale;
+  /** 简历摘要，用于面试官参考（可选） */
+  resumePrompt?: string;
 }
 
 function buildLawCampusSystemPromptEn(
@@ -76,11 +78,16 @@ export interface LLMService {
 }
 
 function buildSystemPrompt(options: LLMOptions): string {
-  const { temperature, role = 'hr', scenario = 'layoff', locale = 'zh' } = options;
+  const { temperature, role = 'hr', scenario = 'layoff', locale = 'zh', resumePrompt } = options;
   const isCampusLawInterview = scenario === 'law_campus';
 
   if (isCampusLawInterview && locale === 'en') {
-    return buildLawCampusSystemPromptEn(temperature, role);
+    const basePrompt = buildLawCampusSystemPromptEn(temperature, role);
+    // 如果有简历信息，附加到系统提示末尾
+    if (resumePrompt) {
+      return basePrompt + '\n\n' + resumePrompt;
+    }
+    return basePrompt;
   }
 
   let style = '';
@@ -144,6 +151,12 @@ ${scenarioDesc}
 7. 只输出口头对话内容，不得添加括号、破折号旁白、动作或神态描写
 
 ${opening}`;
+
+  // 如果有简历信息，附加到系统提示末尾
+  if (resumePrompt) {
+    return basePrompt + '\n\n' + resumePrompt;
+  }
+  return basePrompt;
 }
 
 function sliderToApiTemperature(slider: number): number {

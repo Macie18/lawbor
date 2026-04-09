@@ -160,7 +160,7 @@ export default function Home() {
             transition={{ duration: 0.8 }}
             className="mb-6 text-slate-500 text-xl"
           >
-            你的全天候AI法律锦囊
+            欢迎使用 Lawbor · 你的全天候AI法律锦囊
           </motion.p>
 
           {/* 主标题 - 黑色大号粗体 */}
@@ -224,7 +224,7 @@ export default function Home() {
       {/* Features Section */}
       <div ref={featuresRef} className="relative">
 
-        {/* 模块2：劳动合同审查 */}
+        {/* ✅ 模块1：劳动合同审查 */}
         <FeatureSection
           title="劳动合同审查"
           name="合同天眼 一键扫坑"
@@ -280,94 +280,50 @@ export default function Home() {
           }
         />
 
-        {/* 模块3：知识卡片 */}
+        {/* ✅ 模块2：模拟面试 */}
         <FeatureSection
-          title="知识卡片"
-          name="职场法眼 秒懂权益"
-          description="劳动法太晦涩？我们把它拆成年轻人看得懂的卡片！试用期、加班、离职、赔偿…… 随手一翻，你就是职场懂法达人。"
+          title="模拟面试"
+          name="AI搭子 24小时在线"
+          description="想要在面试前进行预演？担心自己的表达不够专业？通过和智能助手视频对话，缓解你的面试焦虑，为获得offer增添筹码。"
           isReversed
-          logo={LOGOS.knowledgeCard}
+          logo={LOGOS.mockInterview}
           animation={
-            <div className="flex items-center justify-center -space-x-12">
-              {/* 第1阶段：卡片散开 */}
-              {[1, 2, 3].map((i) => (
+            <div className="space-y-4 w-64">
+              {/* 第1阶段：用户气泡浮现 */}
+              <motion.div
+                initial={{ x: -20, opacity: 0, y: 20 }}
+                whileInView={{ x: 0, opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="bg-white p-4 rounded-2xl rounded-bl-none shadow-lg border border-slate-100 text-sm text-slate-600"
+              >
+                面试时如何谈薪资待遇？
+              </motion.div>
+              {/* 第2阶段：AI气泡浮现 */}
+              <motion.div
+                initial={{ x: 20, opacity: 0, y: 20 }}
+                whileInView={{ x: 0, opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.5, duration: 0.5 }}
+                className="bg-blue-600 p-4 rounded-2xl rounded-br-none shadow-lg text-sm text-white flex items-start gap-3"
+              >
+                {/* 第3阶段：AI头像呼吸动效 */}
                 <motion.div
-                  key={i}
-                  initial={{ x: 0, opacity: 0, rotate: 0 }}
-                  whileInView={{ x: (i - 2) * 30, opacity: 1, rotate: (i - 2) * 10 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0 + (i - 1) * 0.05, duration: 0.5 }}
-                  className="h-56 w-40 rounded-2xl bg-white shadow-2xl border border-slate-100 p-6 flex flex-col justify-between"
+                  animate={{ scale: [1, 1.02, 1, 0.98, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                  className="h-6 w-6 rounded-full bg-white/20 flex items-center justify-center shrink-0"
                 >
-                  {/* 第2阶段：翻页动效 */}
-                  <motion.div
-                    className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center"
-                    animate={{ rotateY: [0, 180, 360] }}
-                    transition={{ delay: 0.5 + (i - 1) * 0.2, duration: 1, repeat: 1 }}
-                  >
-                    <Sparkles className="h-4 w-4 text-blue-600" />
-                  </motion.div>
-                  {/* 第3阶段：知识点弹出高亮 */}
-                  <motion.div
-                    initial={{ y: 10, opacity: 0 }}
-                    whileInView={{ y: 0, opacity: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 1.5 + (i - 1) * 0.1, duration: 0.4 }}
-                    className="space-y-2"
-                  >
-                    <div className="h-3 w-full bg-slate-100 rounded" />
-                    <div className="h-3 w-2/3 bg-blue-100 rounded" />
-                  </motion.div>
+                  <Sparkles className="h-3 w-3" />
                 </motion.div>
-              ))}
+                <div>
+                  面试谈薪资时，建议先了解市场行情，再结合自身能力...
+                </div>
+              </motion.div>
             </div>
           }
         />
 
-        {/* 模块4：福利政策指南 */}
-        <FeatureSection
-          title="福利政策指南"
-          name="应届生补贴雷达"
-          description="五险一金、公积金住房贷款、失业金领取、租房补贴、人才补贴、就业扶持、社保减免…… 一键匹配城市政策，手把手教你如何申领！"
-          logo={LOGOS.welfareGuide}
-          animation={
-            <div className="relative flex flex-col items-center w-full h-full bg-[#cfe4f6]">
-              <video
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="h-110 w-110 object-contain"
-              >
-                <source src="/images/福利政策指南.mp4" type="video/mp4" />
-              </video>
-            </div>
-          }
-        />
-
-        {/* 模块5：劳动仲裁帮助 */}
-        <FeatureSection
-          title="劳动仲裁帮助"
-          name="维权冲锋队"
-          description="被欠薪？被辞退？别怕，我们帮你写文书、算赔偿、理证据、走流程，全程陪跑，让你维权不孤单、不迷茫、不妥协。"
-          isReversed
-          logo={LOGOS.arbitration}
-          animation={
-            <div className="relative flex flex-col items-center w-full h-full bg-[#cfe4f6]">
-              <video
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="h-110 w-110 object-contain"
-              >
-                <source src="/images/劳动仲裁视频2.mp4" type="video/mp4" />
-              </video>
-            </div>
-          }
-        />
-
-        {/* 模块6：税务薪资计算器 */}
+        {/* ✅ 模块3：税务薪资计算器 */}
         <FeatureSection
           title="税务薪资计算器"
           name="薪资清算师"
@@ -413,45 +369,89 @@ export default function Home() {
           }
         />
 
-        {/* 模块7：模拟面试 */}
+        {/* ✅ 模块4：知识卡片 */}
         <FeatureSection
-          title="模拟面试"
-          name="AI搭子 24小时在线"
-          description="想要在面试前进行预演？担心自己的表达不够专业？通过和智能助手视频对话，缓解你的面试焦虑，为获得offer增添筹码。"
+          title="知识卡片"
+          name="职场法眼 秒懂权益"
+          description="劳动法太晦涩？我们把它拆成年轻人看得懂的卡片！试用期、加班、离职、赔偿…… 随手一翻，你就是职场懂法达人。"
           isReversed
-          logo={LOGOS.mockInterview}
+          logo={LOGOS.knowledgeCard}
           animation={
-            <div className="space-y-4 w-64">
-              {/* 第1阶段：用户气泡浮现 */}
-              <motion.div
-                initial={{ x: -20, opacity: 0, y: 20 }}
-                whileInView={{ x: 0, opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
-                className="bg-white p-4 rounded-2xl rounded-bl-none shadow-lg border border-slate-100 text-sm text-slate-600"
-              >
-                面试时如何谈薪资待遇？
-              </motion.div>
-              {/* 第2阶段：AI气泡浮现 */}
-              <motion.div
-                initial={{ x: 20, opacity: 0, y: 20 }}
-                whileInView={{ x: 0, opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.5, duration: 0.5 }}
-                className="bg-blue-600 p-4 rounded-2xl rounded-br-none shadow-lg text-sm text-white flex items-start gap-3"
-              >
-                {/* 第3阶段：AI头像呼吸动效 */}
+            <div className="flex items-center justify-center -space-x-12">
+              {/* 第1阶段：卡片散开 */}
+              {[1, 2, 3].map((i) => (
                 <motion.div
-                  animate={{ scale: [1, 1.02, 1, 0.98, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                  className="h-6 w-6 rounded-full bg-white/20 flex items-center justify-center shrink-0"
+                  key={i}
+                  initial={{ x: 0, opacity: 0, rotate: 0 }}
+                  whileInView={{ x: (i - 2) * 30, opacity: 1, rotate: (i - 2) * 10 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0 + (i - 1) * 0.05, duration: 0.5 }}
+                  className="h-56 w-40 rounded-2xl bg-white shadow-2xl border border-slate-100 p-6 flex flex-col justify-between"
                 >
-                  <Sparkles className="h-3 w-3" />
+                  {/* 第2阶段：翻页动效 */}
+                  <motion.div
+                    className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center"
+                    animate={{ rotateY: [0, 180, 360] }}
+                    transition={{ delay: 0.5 + (i - 1) * 0.2, duration: 1, repeat: 1 }}
+                  >
+                    <Sparkles className="h-4 w-4 text-blue-600" />
+                  </motion.div>
+                  {/* 第3阶段：知识点弹出高亮 */}
+                  <motion.div
+                    initial={{ y: 10, opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 1.5 + (i - 1) * 0.1, duration: 0.4 }}
+                    className="space-y-2"
+                  >
+                    <div className="h-3 w-full bg-slate-100 rounded" />
+                    <div className="h-3 w-2/3 bg-blue-100 rounded" />
+                  </motion.div>
                 </motion.div>
-                <div>
-                  面试谈薪资时，建议先了解市场行情，再结合自身能力...
-                </div>
-              </motion.div>
+              ))}
+            </div>
+          }
+        />
+
+        {/* ✅ 模块5：劳动仲裁帮助 */}
+        <FeatureSection
+          title="劳动仲裁帮助"
+          name="维权冲锋队"
+          description="被欠薪？被辞退？别怕，我们帮你写文书、算赔偿、理证据、走流程，全程陪跑，让你维权不孤单、不迷茫、不妥协。"
+          logo={LOGOS.arbitration}
+          animation={
+            <div className="relative flex flex-col items-center w-full h-full bg-[#cfe4f6]">
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="h-110 w-110 object-contain"
+              >
+                <source src="/images/劳动仲裁视频2.mp4" type="video/mp4" />
+              </video>
+            </div>
+          }
+        />
+
+        {/* ✅ 模块6：福利政策指南 */}
+        <FeatureSection
+          title="福利政策指南"
+          name="应届生补贴雷达"
+          description="五险一金、公积金住房贷款、失业金领取、租房补贴、人才补贴、就业扶持、社保减免…… 一键匹配城市政策，手把手教你如何申领！"
+          isReversed
+          logo={LOGOS.welfareGuide}
+          animation={
+            <div className="relative flex flex-col items-center w-full h-full bg-[#cfe4f6]">
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="h-110 w-110 object-contain"
+              >
+                <source src="/images/福利政策指南.mp4" type="video/mp4" />
+              </video>
             </div>
           }
         />

@@ -1,3 +1,5 @@
+import { useAuth } from '../contexts/AuthContext';
+import { useContractReviews } from '../hooks/useContractReviews'
 import { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import {
@@ -8,6 +10,8 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
+  History,    // ← 新增
+  Trash2, 
 } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
 import { runContractReview } from '../services/contractReviewService';
@@ -48,6 +52,8 @@ const FILTER_OPTIONS: { key: FilterOption; label: { zh: string; en: string }; co
 
 export default function ContractReview() {
   const { t, language } = useTranslation();
+  const { user } = useAuth();
+  const { reviews, saveReview, deleteReview, loading: reviewsLoading } = useContractReviews();
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ContractReviewResult | null>(null);
@@ -94,8 +100,17 @@ export default function ContractReview() {
         (text) => {
           setStreamingText(text);
         }
-      ).then((reviewResult) => {
+      ).then(async (reviewResult) => {
         setResult(reviewResult);
+
+        // ✅ 新增：保存审查记录（仅登录用户）
+        if (user && selectedFile.name && reviewResult) {
+          await saveReview(
+            selectedFile.name,
+            '合同',
+            JSON.stringify(reviewResult)
+          );
+        }
       });
     } catch (error) {
       console.error('Contract Review Error:', error);
@@ -137,8 +152,17 @@ export default function ContractReview() {
         textInput,
         (p) => setProgress(p),
         (text) => setStreamingText(text)
-      ).then((reviewResult) => {
+      ).then(async (reviewResult) => {
         setResult(reviewResult);
+        
+        // ✅ 新增：保存审查记录（仅登录用户）
+        if (user && reviewResult) {
+          await saveReview(
+            '文本输入合同',
+            '合同',
+            JSON.stringify(reviewResult)
+          );
+        }
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -503,6 +527,37 @@ disabled:opacity-50"
           </div>
         </div>
       </div>
+     {/* ✅ 新增：历史审查记录列表 */}
+      {user && reviews.length > 0 && (
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+            <History className="h-6 w-6 text-blue-600" />
+            {language === 'zh' ? '历史审查记录' : 'Review History'}
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {reviews.map(review => (
+              <div key={review.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 truncate">{review.contract_name}</h3>
+                    <p className="text-sm text-gray-600">{review.contract_type}</p>
+                  </div>
+                  <button
+                    onClick={() => deleteReview(review.id)}
+                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    title={language === 'zh' ? '删除' : 'Delete'}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400">
+                  {new Date(review.created_at).toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
