@@ -63,10 +63,9 @@
 
 .markdownBody table {
   display: block;
-  width: 100%;
   width: max-content;
   max-width: 100%;
-  overflow: auto;
+  overflow-x: auto;
   margin-top: 0;
   margin-bottom: 16px;
   border-spacing: 0;

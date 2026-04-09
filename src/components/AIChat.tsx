@@ -9,6 +9,8 @@ import { useTranslation } from '../contexts/TranslationContext';
 import { llmService, LLMMessage } from '../services/llmService';
 // 👇 新增引入路由跳转钩子
 import { useNavigate } from 'react-router-dom';
+// 👇 新增引入全局状态
+import { useAIChat } from '../contexts/AIChatContext';
 
 interface Message {
   role: 'user' | 'model' | 'system';
@@ -18,7 +20,7 @@ interface Message {
 export default function AIChat() {
   const navigate = useNavigate();
   const { t, language } = useTranslation();
-  const [isOpen, setIsOpen] = useState(false);
+  const { isOpen, setIsOpen, initialMessage, setInitialMessage } = useAIChat();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,6 +29,14 @@ export default function AIChat() {
   useEffect(() => {
     setMessages([{ role: 'model', text: t('chat.welcome') }]);
   }, [language]);
+
+  // 处理从外部传入的初始消息
+  useEffect(() => {
+    if (isOpen && initialMessage) {
+      handleSend(initialMessage);
+      setInitialMessage(''); // 清空初始消息
+    }
+  }, [isOpen, initialMessage]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -78,12 +88,22 @@ export default function AIChat() {
 
   return (
     <>
-      <button
+      <motion.button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl shadow-blue-200 transition-transform hover:scale-110 active:scale-95"
+        className="fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-2xl shadow-blue-300/50 transition-all hover:scale-110 active:scale-95"
+        animate={{ 
+          scale: [1, 1.05, 1],
+        }}
+        transition={{ 
+          duration: 2, 
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+        whileHover={{ scale: 1.1 }}
+        aria-label={language === 'zh' ? 'AI助手' : 'AI Assistant'}
       >
-        <MessageSquare className="h-6 w-6" />
-      </button>
+        <MessageSquare className="h-7 w-7" />
+      </motion.button>
 
       <AnimatePresence>
         {isOpen && (

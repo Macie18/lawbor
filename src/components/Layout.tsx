@@ -1,14 +1,17 @@
 import { Outlet, useParams, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
-import { Home as HomeIcon, MessageSquare, ChevronLeft, LayoutDashboard, FileText, Calculator, BookOpen, Gavel, Heart, Globe, Video } from 'lucide-react';
+import { Home as HomeIcon, MessageSquare, ChevronLeft, LayoutDashboard, FileText, Calculator, BookOpen, Gavel, Heart, Globe, Video, Sparkles } from 'lucide-react';
 import { IDENTITIES } from '../types';
 import AIChat from './AIChat';
+import FirstVisitGuide from './FirstVisitGuide';
 import { useTranslation } from '../contexts/TranslationContext';
+import { useAIChat } from '../contexts/AIChatContext';
 import { cn } from '../lib/utils';
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, language, setLanguage } = useTranslation();
+  const { setIsOpen } = useAIChat();
 
   const navItems = [
     { path: `/dashboard`, label: t('nav.dashboard'), icon: LayoutDashboard },
@@ -38,7 +41,18 @@ export default function Layout() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* AI助手按钮 */}
+            <button
+              onClick={() => setIsOpen(true)}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl active:scale-95"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">{language === 'zh' ? 'AI助手' : 'AI Assistant'}</span>
+              <Sparkles className="h-4 w-4 sm:hidden" />
+            </button>
+
+            {/* 语言切换 */}
             <button
               onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}
               className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
@@ -81,6 +95,7 @@ export default function Layout() {
       </main>
 
       <AIChat />
+      <FirstVisitGuide />
     </div>
   );
 }
