@@ -223,14 +223,14 @@ export class DeepSeekLLMService implements LLMService {
     }
 
     try {
-      const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      const res = await fetch(openAiCompatibleChatUrl(this.baseUrl), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-ai/DeepSeek-V3',
+          model: this.model,
           messages: chatMessages,
           temperature: 0.3,
         }),
@@ -238,7 +238,7 @@ export class DeepSeekLLMService implements LLMService {
 
       if (!res.ok) {
         const errText = await res.text();
-        console.error('[硅基流动 API 报错]:', errText);
+        console.error('[DeepSeek API error]:', errText);
         throw new Error('网络请求失败');
       }
 
