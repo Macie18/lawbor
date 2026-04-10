@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
-import ContractReview from './pages/ContractReview';
+import ContractReviewHub from './pages/ContractReviewHub';
+import CompanyRiskPage from './pages/CompanyRiskPage';
+import ContractCheckPage from './pages/ContractCheckPage';
 import TaxCalculator from './pages/TaxCalculator';
 import KnowledgeCards from './pages/KnowledgeCards';
 import Arbitration from './pages/Arbitration';
@@ -21,7 +23,10 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/contract" element={<ContractReview />} />
+              <Route path="/contract-review" element={<ContractReviewHub />} />
+              <Route path="/company-risk" element={<CompanyRiskPage />} />
+              <Route path="/contract-check" element={<ContractCheckPage />} />
+              <Route path="/contract" element={<ContractReviewHub />} />
               <Route path="/tax" element={<TaxCalculator />} />
               <Route path="/knowledge" element={<KnowledgeCards />} />
               <Route path="/arbitration" element={<Arbitration />} />
