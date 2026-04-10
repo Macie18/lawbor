@@ -11,18 +11,22 @@ import {
   CheckCircle,
   AlertCircle,
   History,    // ← 新增
-  Trash2, 
+  Trash2,
+  Building2,
 } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
 import { runContractReview } from '../services/contractReviewService';
 import { extractTextFromFile } from '../utils/fileParser';
+import { extractCompanyNameFromContract } from '../services/qccService';
 import RiskCard from '../components/RiskCard';
+import CompanyRiskQuery from '../components/CompanyRiskQuery';
 import type {
   ContractReviewResult,
   RiskLevel,
   WorkflowStep,
   WorkflowProgress,
 } from '../types/contractReview';
+import type { CompanyRiskReport } from '../services/qccService';
 import {
   RiskLevelMap,
   WORKFLOW_STEPS,
@@ -67,6 +71,11 @@ export default function ContractReview() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<'file' | 'text'>('file');
   const [textInput, setTextInput] = useState('');
+  
+  // ✅ 新增：企业风险查询相关状态
+  const [detectedCompanyName, setDetectedCompanyName] = useState<string>('');
+  const [companyRiskReport, setCompanyRiskReport] = useState<CompanyRiskReport | null>(null);
+  const [showCompanyRisk, setShowCompanyRisk] = useState(false);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -79,6 +88,8 @@ export default function ContractReview() {
     setStreamingText('');
     setParseError(null);
     setTextInput('');
+    setDetectedCompanyName(''); // 重置公司名称
+    setCompanyRiskReport(null); // 重置企业风险报告
 
     try {
       // 第一步：解析文件提取文本
@@ -90,6 +101,13 @@ export default function ContractReview() {
 
       const fileText = await extractTextFromFile(selectedFile);
       console.log('[ContractReview] 文件解析成功, 文本长度:', fileText.length);
+
+      // ✅ 新增：尝试提取公司名称
+      const companyName = extractCompanyNameFromContract(fileText);
+      if (companyName) {
+        console.log('[ContractReview] 检测到公司名称:', companyName);
+        setDetectedCompanyName(companyName);
+      }
 
       // 第二步：调用 Dify API 进行审查
       await runContractReview(
@@ -471,7 +489,63 @@ disabled:opacity-50"
               <p>{t('contract.privacy')}</p>
             </div>
           </div>
+
+          {/* ✅ 新增：企业风险查询入口 */}
+          {detectedCompanyName && !showCompanyRisk && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 p-4 bg-violet-50 border border-violet-200 rounded-2xl"
+            >
+              <div className="flex items-center gap-3">
+                <Building2 className="h-5 w-5 text-violet-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-violet-900">
+                    {language === 'zh' ? '检测到企业名称' : 'Company detected'}
+                  </p>
+                  <p className="text-xs text-violet-700">
+                    {detectedCompanyName}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowCompanyRisk(true)}
+                  className="px-4 py-2 text-xs font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
+                >
+                  {language === 'zh' ? '查询风险' : 'Query Risk'}
+                </button>
+              </div>
+            </motion.div>
+          )}
         </div>
+
+        {/* ✅ 新增：企业风险报告展示区 */}
+        {(showCompanyRisk || companyRiskReport) && (
+          <div className="lg:col-span-2 mt-8">
+            <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <Building2 className="h-6 w-6 text-violet-600" />
+              {language === 'zh' ? '企业风险报告' : 'Company Risk Report'}
+            </h3>
+            <CompanyRiskQuery
+              initialCompanyName={detectedCompanyName}
+              onQuerySuccess={(report) => setCompanyRiskReport(report)}
+            />
+          </div>
+        )}
+
+        {/* 手动触发企业风险查询按钮 */}
+        {!showCompanyRisk && !companyRiskReport && (
+          <div className="lg:col-span-2">
+            <button
+              onClick={() => setShowCompanyRisk(true)}
+              className="w-full p-4 border-2 border-dashed border-violet-200 rounded-2xl text-violet-600 hover:bg-violet-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <Building2 className="h-5 w-5" />
+              <span className="font-medium">
+                {language === 'zh' ? '手动查询企业风险' : 'Manual Company Risk Query'}
+              </span>
+            </button>
+          </div>
+        )}
 
         <div className="lg:col-span-2">
           <div className="min-h-[400px] rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
