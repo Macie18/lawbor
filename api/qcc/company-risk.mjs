@@ -136,9 +136,40 @@ async function callQccMcpApi(serverName, toolName, args) {
   }
 }
 
-// ✅ 解析风险数据 - 支持 Markdown 表格格式和 JSON 格式
+// ✅ 解析风险数据 - 支持 MCP 格式、Markdown 表格格式和 JSON 格式
 const parseRiskData = (result, dataType) => {
   if (!result) return [];
+
+  // ✅ 优先处理 MCP 格式：{ content: [{ type: "text", text: "JSON字符串" }] }
+  if (result.content && Array.isArray(result.content)) {
+    const textContent = result.content.find(c => c.type === 'text');
+    if (textContent?.text) {
+      try {
+        const parsed = JSON.parse(textContent.text);
+        console.log(`[QCC API] ${dataType} MCP 格式解析成功`);
+        
+        // 根据 dataType 提取对应的数组
+        const dataKeyMap = {
+          '立案信息': '立案信息',
+          '司法文书': '裁判文书',
+          '经营异常': '经营异常',
+          '失信信息': '失信信息',
+        };
+        
+        const targetKey = dataKeyMap[dataType] || dataType;
+        if (parsed[targetKey] && Array.isArray(parsed[targetKey])) {
+          console.log(`[QCC API] ${dataType} 解析到 ${parsed[targetKey].length} 条记录`);
+          return parsed[targetKey];
+        }
+        
+        // 如果没有找到对应字段，返回空数组
+        console.log(`[QCC API] ${dataType} 未找到数据字段 ${targetKey}`);
+        return [];
+      } catch (e) {
+        console.warn(`[QCC API] ${dataType} JSON 解析失败:`, e.message);
+      }
+    }
+  }
 
   // CLI 返回纯文本格式（Markdown 表格）
   if (result.raw && typeof result.raw === 'string') {
@@ -221,7 +252,7 @@ const parseRiskData = (result, dataType) => {
     return items;
   }
 
-  // MCP JSON 格式
+  // 其他 JSON 格式
   if (result.error) return [];
   if (result.data) {
     const data = result.data;
