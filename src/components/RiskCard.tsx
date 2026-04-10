@@ -6,33 +6,33 @@ import type { RiskAssessment, RiskLevel } from '../types/contractReview';
 import { RiskLevelMap, RiskLevelColor, RiskCategoryMap } from '../types/contractReview';
 
 interface RiskCardProps {
-  item: RiskAssessment;
+  risk: RiskAssessment;
   index: number;
 }
 
-export default function RiskCard({ item, index }: RiskCardProps) {
+export default function RiskCard({ risk, index }: RiskCardProps) {
   const { t, language } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
   const cardId = `risk-${index}`;
-  const levelColor = RiskLevelColor[item.level];
-  const levelText = RiskLevelMap[item.level];
-  const categoryText = RiskCategoryMap[item.category] || item.category;
+  const levelColor = RiskLevelColor[risk.level];
+  const levelText = RiskLevelMap[risk.level];
+  const categoryText = RiskCategoryMap[risk.category] || risk.category;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(item.negotiation_tip).then(() => {
+    navigator.clipboard.writeText(risk.negotiation_tip).then(() => {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     });
   };
 
   const levelTextColor =
-    item.level === 'high'
+    risk.level === 'high'
       ? 'text-red-700'
-      : item.level === 'medium'
+      : risk.level === 'medium'
       ? 'text-amber-700'
-      : item.level === 'low'
+      : risk.level === 'low'
       ? 'text-blue-700'
       : 'text-green-700';
 
@@ -55,10 +55,10 @@ export default function RiskCard({ item, index }: RiskCardProps) {
               {levelText}
             </span>
             <span className="text-xs text-slate-500">
-              {language === 'zh' ? '评分' : 'Score'}: {item.score}
+              {language === 'zh' ? '评分' : 'Score'}: {risk.score}
             </span>
           </div>
-          <h4 className="font-bold text-slate-800 text-lg">{item.title}</h4>
+          <h4 className="font-bold text-slate-800 text-lg">{risk.title}</h4>
         </div>
         <button
           onClick={() => setIsExpanded(!isExpanded)}
@@ -78,7 +78,7 @@ export default function RiskCard({ item, index }: RiskCardProps) {
           {language === 'zh' ? '原始条款' : 'Original Clause'}
         </p>
         <p className="text-sm text-slate-700 bg-white/50 rounded-lg p-3">
-          {item.original_clause}
+          {risk.original_clause}
         </p>
       </div>
 
@@ -87,17 +87,17 @@ export default function RiskCard({ item, index }: RiskCardProps) {
         <p className="text-xs text-slate-500 mb-1">
           {language === 'zh' ? '💡 大白话解读' : '💡 Explanation'}
         </p>
-        <p className="text-sm text-slate-700">{item.explanation}</p>
+        <p className="text-sm text-slate-700">{risk.explanation}</p>
       </div>
 
       {/* 法律依据 */}
-      {item.legal_basis && (
+      {risk.legal_basis && (
         <div className="mb-3">
           <p className="text-xs text-slate-500 mb-1">
             {language === 'zh' ? '⚖️ 法律依据' : '⚖️ Legal Basis'}
           </p>
           <p className="text-sm text-slate-700 bg-blue-50/50 rounded-lg p-3">
-            {item.legal_basis}
+            {risk.legal_basis}
           </p>
         </div>
       )}
@@ -132,15 +132,15 @@ export default function RiskCard({ item, index }: RiskCardProps) {
                 )}
               </button>
             </div>
-            <p className="text-sm text-green-800 bg-green-50 rounded-lg p-3 whitespace-pre-wrap">
-              {item.negotiation_tip}
-            </p>
+<p className="text-sm text-green-800 bg-green-50 rounded-lg p-3 whitespace-pre-wrap">
+            {risk.negotiation_tip}
+          </p>
           </div>
         </motion.div>
       )}
 
       {/* 未展开时显示点击提示 */}
-      {!isExpanded && item.negotiation_tip && (
+      {!isExpanded && risk.negotiation_tip && (
         <div className="mt-3 pt-3 border-t border-slate-200/50">
           <button
             onClick={() => setIsExpanded(true)}
