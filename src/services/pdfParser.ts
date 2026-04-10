@@ -5,8 +5,17 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 设置 worker（浏览器端使用 jsDelivr CDN，比 cdnjs 更稳定）
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+// 设置 worker - 使用多个 CDN 源备选
+// unpkg 是更稳定的 NPM CDN，cdnjs 是 Cloudflare 提供的 CDN
+const workerVersion = pdfjsLib.version;
+const cdnSources = [
+  `https://unpkg.com/pdfjs-dist@${workerVersion}/build/pdf.worker.min.mjs`,
+  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${workerVersion}/pdf.worker.min.mjs`,
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${workerVersion}/build/pdf.worker.min.mjs`
+];
+
+// 尝试使用第一个源，失败时自动切换
+pdfjsLib.GlobalWorkerOptions.workerSrc = cdnSources[0];
 
 export interface ParsedPDF {
   text: string;

@@ -1,14 +1,12 @@
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 1. 获取当前环境实际运行的 pdfjs 版本 (比如你的环境里是 3.11.174)
+// 获取 pdfjs 版本并动态判断后缀名
 const pdfjsVersion = pdfjsLib.version;
-
-// 2. 动态判断后缀名：如果是 3.x 开头则使用 .js，否则使用 .mjs
 const workerExt = pdfjsVersion.startsWith('3') ? 'js' : 'mjs';
 
-// 3. 使用 jsdelivr NPM 镜像源，它与 node_modules 里的官方包结构完全一致
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.${workerExt}`;
+// 使用多个 CDN 源备选（unpkg > cdnjs > jsdelivr）
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.${workerExt}`;
 
 /**
  * 从文件中提取文本内容
