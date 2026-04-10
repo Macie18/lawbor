@@ -23,6 +23,7 @@ Flexibly employed persons refer to self-employed persons, individual industrial 
 
 #### 3. Official Inquiry Channels
 Official website of the State Taxation Administration Shanghai Municipal Taxation Bureau (Social Insurance Premiums Column), official website of Shanghai Municipal Human Resources and Social Security Bureau, official website of Shanghai Municipal Healthcare Security Bureau, Shanghai Housing Provident Fund Website.
+
 ---
 ### (II) Impacts of Payment Interruption
 #### 1. Core Impacts of Interruption of the Five Social Insurances
@@ -161,6 +162,7 @@ An applicant may apply for Shanghai unemployment insurance benefits if all of th
 **Supplementary Rights and Interests**: During the period of receiving unemployment insurance benefits, the unemployment insurance fund shall pay the employee basic medical insurance (including maternity insurance) premiums on behalf of the insured, with no personal contribution, and the insured shall enjoy employee medical insurance benefits normally. Free job introduction, vocational training and other employment services are available.
 
 **Circumstances Ineligible for Collection**: Re-employment; enlistment in active military service; emigration abroad; enjoying basic endowment insurance benefits; being imprisoned and executed for a crime or undergoing reeducation through labor; refusing to accept an appropriate job or training introduced by the public employment service agency without justifiable reasons.
+
 ---
 ### (II) Amount Calculation
 #### 1. Payment Standards (effective from July 1, 2025)
@@ -177,6 +179,7 @@ An applicant may apply for Shanghai unemployment insurance benefits if all of th
 - Cumulative payment of 10 years or more: maximum collection period of 24 months.
 
 **Supplementary Rules**: If re-employment leads to unemployment again, the payment period shall be recalculated, and the uncollected period from the previous time may be combined for calculation, with the maximum combined period not exceeding 24 months.
+
 ---
 ### (III) Application Process
 1. **Online Application** (full online processing, no offline materials required): Search for "Unemployment Insurance Benefit Application" through Suishenban APP/Mini Program, "Palm 12333" APP, or the one-stop service column on the official website of Shanghai Municipal Human Resources and Social Security Bureau, check personal information and submit the application.

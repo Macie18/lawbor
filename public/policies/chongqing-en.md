@@ -15,6 +15,7 @@
 
 #### 2. Official Inquiry Channels
 Official website of the State Taxation Administration Chongqing Municipal Taxation Bureau (Social Insurance Premiums Column), official website of Chongqing Municipal Human Resources and Social Security Bureau, official website of Chongqing Municipal Healthcare Security Bureau, official website of Chongqing Municipal Housing Provident Fund Management Center.
+
 ---
 ### (II) Impacts of Payment Interruption
 #### 1. Core Impacts of Interruption of the Five Social Insurances
@@ -141,6 +142,7 @@ An applicant may apply for Chongqing unemployment insurance benefits if all of t
 **Supplementary Rights and Interests**: During the period of receiving unemployment insurance benefits, the unemployment insurance fund shall pay the employee basic medical insurance (including maternity insurance) premiums on behalf of the insured, with no personal contribution, and the insured shall enjoy employee medical insurance benefits normally. Free job introduction, vocational training and other employment services are available.
 
 **Circumstances Ineligible for Collection**: Re-employment; enlistment in active military service; emigration abroad; enjoying basic endowment insurance benefits; being imprisoned and executed for a crime; refusing to accept an appropriate job or training introduced by the public employment service agency without justifiable reasons.
+
 ---
 ### (II) Amount Calculation
 #### 1. Payment Standards (effective from January 1, 2025)
@@ -156,6 +158,7 @@ An applicant may apply for Chongqing unemployment insurance benefits if all of t
 - For cumulative payment of 7 years or more, the collection period increases by 1 month for each additional year, up to a maximum of 24 months.
 
 **Supplementary Rules**: If re-employment leads to unemployment again, the payment period shall be recalculated, and the uncollected period from the previous time may be combined for calculation, with the maximum combined period not exceeding 24 months.
+
 ---
 ### (III) Application Process
 1. **Online Application** (full online processing, no offline materials required): Unemployed persons may apply for unemployment benefits through the "Yukuaiban" APP, "Chongqing Human Resources and Social Security" APP, "Yuzhipin" Mini Program and other channels.

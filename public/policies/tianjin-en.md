@@ -22,6 +22,7 @@
 
 #### 3. Official Inquiry Channels
 Official website of the State Taxation Administration Tianjin Municipal Taxation Bureau (Social Insurance Premiums Column), official website of Tianjin Municipal Human Resources and Social Security Bureau, official website of Tianjin Municipal Healthcare Security Bureau, official website of Tianjin Municipal Housing Provident Fund Management Center, Jinxinban APP, Palm 12333 APP.
+
 ---
 ### (II) Impacts of Payment Interruption
 #### 1. Core Impacts of Interruption of the Five Social Insurances
@@ -166,6 +167,7 @@ An applicant may apply for Tianjin unemployment insurance benefits if all of the
 **Supplementary Rights and Interests**: During the period of receiving unemployment insurance benefits, the unemployment insurance fund shall pay the employee basic medical insurance (including maternity insurance) premiums and large-sum medical assistance fee on behalf of the insured, with no personal contribution, and the insured shall enjoy employee medical insurance benefits normally. Free job introduction, vocational training and other employment services are available; if the insured dies during the collection period, his/her survivors may apply for funeral allowance and pension.
 
 **Circumstances Ineligible for Collection**: Re-employment; enlistment in active military service; emigration abroad; enjoying basic endowment insurance benefits; being imprisoned and executed for a crime; refusing to accept an appropriate job or training introduced by the public employment service agency without justifiable reasons.
+
 ---
 ### (II) Amount Calculation
 #### 1. Payment Standards (effective from July 1, 2024, currently effective)
@@ -179,6 +181,7 @@ An applicant may apply for Tianjin unemployment insurance benefits if all of the
 - Cumulative payment of 10 years or more: maximum collection period of 24 months.
 
 **Supplementary Rules**: If re-employment leads to unemployment again, the payment period shall be recalculated, and the uncollected period from the previous time may be combined for calculation, with the maximum combined period not exceeding 24 months.
+
 ---
 ### (III) Application Process
 1. **Online Application** (full online processing, no offline materials required): Search for "Unemployment Insurance Benefit Application" through Jinxinban APP/Mini Program, "Palm 12333" APP, or the online service hall on the official website of Tianjin Municipal Human Resources and Social Security Bureau, check personal information and submit the application.

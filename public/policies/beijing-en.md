@@ -141,6 +141,7 @@ An applicant may apply for Beijing unemployment insurance benefits if all of the
 **Supplementary Rights and Interests**: During the period of receiving unemployment insurance benefits, the unemployment insurance fund shall pay the employee basic medical insurance (including maternity insurance) premiums on behalf of the insured, with no personal contribution, and the insured shall enjoy employee medical insurance benefits normally. Free job introduction, vocational training and other employment services are available.
 
 **Circumstances Ineligible for Collection**: Re-employment; enlistment in active military service; emigration abroad; enjoying basic endowment insurance benefits; being imprisoned and executed for a crime or undergoing reeducation through labor; refusing to accept an appropriate job or training introduced by the public employment service agency without justifiable reasons.
+
 ---
 ### (II) Amount Calculation
 **Payment Standards (effective from September 1, 2025)**

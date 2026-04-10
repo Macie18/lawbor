@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, ShieldCheck, Umbrella, Home, Baby, Info, ChevronDown, MapPin, Globe, Sparkles, Loader2, AlertCircle, ArrowUp } from 'lucide-react';
+import { Heart, ShieldCheck, Umbrella, Home, Baby, Info, ChevronDown, MapPin, Globe, Sparkles, Loader2, AlertCircle, ArrowUp, Briefcase } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Select, Spin } from 'antd';
@@ -15,6 +15,12 @@ interface TocItem {
   text: string;
   level: number;
 }
+
+// ✅ 新增：政策类型常量
+const POLICY_TYPES = [
+  { id: 'social', name: '五险一金', nameEn: 'Social Insurance' },
+  { id: 'employment', name: '就业扶持', nameEn: 'Employment Support' },
+];
 
 const CITIES = [
   { id: 'beijing', name: '北京', nameEn: 'Beijing' },
@@ -164,6 +170,8 @@ export default function BenefitsGuide() {
   const { t, language } = useTranslation();
   const isEn = language === 'en';
 
+  // ✅ 新增：政策类型状态
+  const [policyType, setPolicyType] = useState<'social' | 'employment'>('social');
   const [expandedId, setExpandedId] = useState<string | null>('pension');
   const [selectedCity, setSelectedCity] = useState<string | null>('beijing');
   const [markdownContent, setMarkdownContent] = useState<string>('');
@@ -176,13 +184,13 @@ export default function BenefitsGuide() {
 
   useEffect(() => {
     if (selectedCity && !selectedCity.startsWith('placeholder_')) {
-      fetchMarkdown(selectedCity, language);
+      fetchMarkdown(selectedCity, language, policyType);
     } else {
       setMarkdownContent('');
       setToc([]);
       setError(null);
     }
-  }, [selectedCity, language]);
+  }, [selectedCity, language, policyType]);
 
   // Scroll spy for TOC active state
   useEffect(() => {
@@ -236,13 +244,15 @@ export default function BenefitsGuide() {
     }
   };
 
-  const fetchMarkdown = async (cityId: string, lang: 'zh' | 'en') => {
+  const fetchMarkdown = async (cityId: string, lang: 'zh' | 'en', type: 'social' | 'employment') => {
     setLoading(true);
     setError(null);
     setToc([]);
     try {
       const fileName = lang === 'en' ? `${cityId}-en.md` : `${cityId}.md`;
-      const response = await fetch(`/policies/${fileName}?t=${Date.now()}`);
+      // ✅ 根据政策类型选择不同目录
+      const basePath = type === 'employment' ? '/policies/employment/' : '/policies/';
+      const response = await fetch(`${basePath}${fileName}?t=${Date.now()}`);
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error(lang === 'en' ? 'English policy not yet available for this city' : '该地区政策文件尚未上线');
@@ -315,6 +325,38 @@ export default function BenefitsGuide() {
         </p>
       </header>
 
+      {/* Policy Type Selection Bar - 新增 */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-400">
+          <Briefcase className="h-4 w-4" />
+          <span>{isEn ? 'Policy Type:' : '政策类型：'}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {POLICY_TYPES.map((type) => (
+            <button
+              key={type.id}
+              onClick={() => {
+                setPolicyType(type.id as 'social' | 'employment');
+                // 切换政策类型时重置城市选择
+                setSelectedCity(type.id === 'employment' ? 'beijing' : null);
+              }}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold transition-all ${
+                policyType === type.id
+                  ? 'bg-violet-600 text-white shadow-lg shadow-violet-100'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              {type.id === 'social' ? (
+                <Heart className="h-4 w-4" />
+              ) : (
+                <Briefcase className="h-4 w-4" />
+              )}
+              {isEn ? type.nameEn : type.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* City Selection Bar */}
       <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2 text-sm font-bold text-slate-400">
@@ -322,17 +364,20 @@ export default function BenefitsGuide() {
           <span>{isEn ? 'City-specific policy:' : '地区专项政策：'}</span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => setSelectedCity(null)}
-            className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold transition-all ${
-              selectedCity === null
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            <Globe className="h-4 w-4" />
-            {isEn ? 'National General' : '全国通用'}
-          </button>
+          {/* ✅ 就业扶持政策必须选择城市，不显示"全国通用"按钮 */}
+          {policyType === 'social' && (
+            <button
+              onClick={() => setSelectedCity(null)}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold transition-all ${
+                selectedCity === null
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <Globe className="h-4 w-4" />
+              {isEn ? 'National General' : '全国通用'}
+            </button>
+          )}
 
           <Select
             placeholder={isEn ? 'Select city' : '选择城市'}
@@ -352,7 +397,134 @@ export default function BenefitsGuide() {
       </div>
 
       <AnimatePresence mode="wait">
-        {selectedCity === null ? (
+        {/* ✅ 就业扶持政策：直接显示城市政策内容 */}
+        {policyType === 'employment' ? (
+          // 就业扶持政策内容区域
+          <motion.div
+            key="employment"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            {/* 就业扶持政策提示 */}
+            <div className="mb-6 flex items-start gap-3 rounded-2xl bg-violet-50 p-4 text-sm text-violet-800">
+              <Briefcase className="h-5 w-5 shrink-0" />
+              <p>{isEn 
+                ? 'Employment support policies include: talent subsidies, entrepreneurship support, housing subsidies, social security subsidies, etc. Please select a city to view local policies.'
+                : '就业扶持政策包括：人才补贴、创业扶持、安居租房补贴、社保补贴等。请选择城市查看当地政策。'}
+              </p>
+            </div>
+
+            {/* 就业扶持政策内容 - 与五险一金相同的布局 */}
+            {selectedCity && (
+              <div className="flex flex-col lg:flex-row gap-8">
+                {/* Sticky TOC sidebar */}
+                {toc.length > 0 && (
+                  <div className="hidden lg:block lg:w-56 flex-shrink-0">
+                    <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
+                      <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+                        <Sparkles className="h-3 w-3" />
+                        {isEn ? 'Contents' : '目录索引'}
+                      </p>
+                      <ul className="space-y-1">
+                        {toc.map((item) => (
+                          <li key={item.id}>
+                            <button
+                              onClick={() => scrollTo(item.id)}
+                              className={`block w-full text-left text-sm leading-snug transition-colors ${
+                                item.level === 3 ? 'pl-4' : ''
+                              } py-1 ${
+                                activeId === item.id
+                                  ? 'font-semibold text-violet-600'
+                                  : 'text-slate-500 hover:text-violet-600'
+                              }`}
+                            >
+                              {item.text}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {/* Main content */}
+                <motion.div
+                  key={selectedCity}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="flex-1 min-w-0 rounded-[2.5rem] border border-violet-200 bg-white p-8 shadow-xl lg:p-12"
+                >
+                  <div className="mb-8 flex items-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-lg shadow-violet-100">
+                      <Briefcase className="h-8 w-8" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-black text-slate-900">
+                        {isEn ? `${getCityName(selectedCity)} Employment Support` : `${getCityName(selectedCity)}就业扶持政策`}
+                      </h3>
+                      <p className="text-slate-500">
+                        {isEn
+                          ? 'Employment and entrepreneurship support policies for graduates'
+                          : '高校毕业生就业创业扶持政策'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className={styles.markdownBody} ref={contentRef}>
+                    {loading ? (
+                      <div className={styles.loadingContainer}>
+                        <Spin indicator={<Loader2 className="h-8 w-8 animate-spin" />} />
+                        <p className="mt-4">{isEn ? 'Loading policy file...' : '正在加载政策文件...'}</p>
+                      </div>
+                    ) : error ? (
+                      <div className={styles.errorContainer}>
+                        <AlertCircle className="mb-4 h-12 w-12" />
+                        <h4 className="text-xl font-bold">{error}</h4>
+                        <p className="mt-2">{isEn ? 'Try selecting another city or try again later.' : '请尝试选择其他城市或稍后再试'}</p>
+                      </div>
+                    ) : markdownContent ? (
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          h2: ({ children }) => {
+                            const id = String(children).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-').replace(/(^-|-$)/g, '');
+                            return <h2 id={id}>{children}</h2>;
+                          },
+                          h3: ({ children }) => {
+                            const id = String(children).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-').replace(/(^-|-$)/g, '');
+                            return <h3 id={id}>{children}</h3>;
+                          },
+                        }}
+                      >
+                        {markdownContent}
+                      </ReactMarkdown>
+                    ) : (
+                      <div className={styles.emptyContainer}>
+                        <Briefcase className="mb-4 h-12 w-12 opacity-20" />
+                        <h4 className="text-xl font-bold">{isEn ? 'No content yet' : '暂无政策内容'}</h4>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-12 flex items-center gap-4 rounded-3xl bg-violet-50 p-6">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-violet-600 shadow-sm">
+                      <Info className="h-6 w-6" />
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      <p className="font-bold text-slate-900">{isEn ? 'Data updated in April 2026' : '数据更新于 2026 年 4 月'}</p>
+                      <p>{isEn
+                        ? 'The above information is compiled by the Lawbor team based on official public information for reference only. For specific business handling, please consult local 12333 or relevant departments.'
+                        : '以上信息由 Lawbor 团队根据官方公示信息整理，仅供参考。具体业务办理请咨询当地 12333 或相关部门。'}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </motion.div>
+        ) : selectedCity === null ? (
           <motion.div
             key="national"
             initial={{ opacity: 0, y: 20 }}
