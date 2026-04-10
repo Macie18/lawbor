@@ -341,27 +341,35 @@ export default function CompanyRiskPage() {
                     >
                       <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
                         {/* 原告 */}
-                        {dispute.plaintiff && dispute.plaintiff !== '-' && (
+                        {((dispute as any).当事人?.原告 || dispute.plaintiff) && (
                           <div className="flex items-start gap-2">
                             <Users className="h-4 w-4 text-green-600 mt-0.5" />
                             <div>
                               <span className="font-medium text-slate-600 text-sm">
                                 {language === 'zh' ? '原告：' : 'Plaintiff: '}
                               </span>
-                              <span className="text-slate-900 text-sm">{dispute.plaintiff}</span>
+                              <span className="text-slate-900 text-sm">
+                                {Array.isArray((dispute as any).当事人?.原告) 
+                                  ? (dispute as any).当事人.原告.join('、') 
+                                  : dispute.plaintiff}
+                              </span>
                             </div>
                           </div>
                         )}
 
                         {/* 被告 */}
-                        {dispute.defendant && dispute.defendant !== '-' && (
+                        {((dispute as any).当事人?.被告 || dispute.defendant) && (
                           <div className="flex items-start gap-2">
                             <Users className="h-4 w-4 text-red-600 mt-0.5" />
                             <div>
                               <span className="font-medium text-slate-600 text-sm">
                                 {language === 'zh' ? '被告：' : 'Defendant: '}
                               </span>
-                              <span className="text-slate-900 text-sm">{dispute.defendant}</span>
+                              <span className="text-slate-900 text-sm">
+                                {Array.isArray((dispute as any).当事人?.被告) 
+                                  ? (dispute as any).当事人.被告.join('、') 
+                                  : dispute.defendant}
+                              </span>
                             </div>
                           </div>
                         )}
@@ -501,7 +509,7 @@ export default function CompanyRiskPage() {
                     >
                       <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
                         {/* 当事人 */}
-                        {(risk as any).parties && (
+                        {((risk as any).当事人 || (risk as any).parties) && (
                           <div className="flex items-start gap-2">
                             <Users className="h-4 w-4 text-slate-400 mt-0.5" />
                             <div className="text-sm">
@@ -510,26 +518,34 @@ export default function CompanyRiskPage() {
                               </span>
                               <div className="mt-1">
                                 {(() => {
-                                  const parties = parseParties((risk as any).parties);
-                                  if (!parties) return <span className="text-slate-900">{(risk as any).parties}</span>;
+                                  const partiesData = (risk as any).当事人 || (risk as any).parties;
+                                  // 如果是字符串，尝试解析为 JSON
+                                  let parties = typeof partiesData === 'string' 
+                                    ? parseParties(partiesData) 
+                                    : partiesData;
+                                  
+                                  if (!parties || typeof parties !== 'object') {
+                                    return <span className="text-slate-900">{partiesData}</span>;
+                                  }
+                                  
                                   return (
                                     <>
-                                      {parties['原告'] && (
+                                      {parties['原告'] && Array.isArray(parties['原告']) && (
                                         <div className="text-green-700">
                                           {language === 'zh' ? '原告：' : 'Plaintiff: '}{parties['原告'].join('、')}
                                         </div>
                                       )}
-                                      {parties['被告'] && (
+                                      {parties['被告'] && Array.isArray(parties['被告']) && (
                                         <div className="text-red-700">
                                           {language === 'zh' ? '被告：' : 'Defendant: '}{parties['被告'].join('、')}
                                         </div>
                                       )}
-                                      {parties['上诉人'] && (
+                                      {parties['上诉人'] && Array.isArray(parties['上诉人']) && (
                                         <div className="text-blue-700">
                                           {language === 'zh' ? '上诉人：' : 'Appellant: '}{parties['上诉人'].join('、')}
                                         </div>
                                       )}
-                                      {parties['被上诉人'] && (
+                                      {parties['被上诉人'] && Array.isArray(parties['被上诉人']) && (
                                         <div className="text-purple-700">
                                           {language === 'zh' ? '被上诉人：' : 'Appellee: '}{parties['被上诉人'].join('、')}
                                         </div>
@@ -543,20 +559,20 @@ export default function CompanyRiskPage() {
                         )}
 
                         {/* 文书标题 */}
-                        {(risk as any).documentTitle && (
+                        {((risk as any).文书标题 || (risk as any).documentTitle) && (
                           <div className="flex items-start gap-2">
                             <FileWarning className="h-4 w-4 text-blue-600 mt-0.5" />
                             <div className="text-sm">
                               <span className="font-medium text-slate-600">
                                 {language === 'zh' ? '文书标题：' : 'Document: '}
                               </span>
-                              <span className="text-slate-900">{(risk as any).documentTitle}</span>
+                              <span className="text-slate-900">{(risk as any).文书标题 || (risk as any).documentTitle}</span>
                             </div>
                           </div>
                         )}
 
                         {/* 裁判结果 */}
-                        {(risk as any).judgmentResult && (
+                        {((risk as any).裁判结果 || (risk as any).judgmentResult) && (
                           <div className="flex items-start gap-2">
                             <Scale className="h-4 w-4 text-purple-600 mt-0.5" />
                             <div className="text-sm flex-1">
@@ -564,32 +580,32 @@ export default function CompanyRiskPage() {
                                 {language === 'zh' ? '裁判结果：' : 'Judgment: '}
                               </span>
                               <div className="mt-1 p-2 bg-purple-50 rounded border border-purple-100 text-slate-900">
-                                {(risk as any).judgmentResult}
+                                {(risk as any).裁判结果 || (risk as any).judgmentResult}
                               </div>
                             </div>
                           </div>
                         )}
 
                         {/* 案件金额 */}
-                        {(risk as any).amount && (
+                        {((risk as any).案件金额 || (risk as any).amount) && ((risk as any).案件金额 !== '' || (risk as any).amount) && (
                           <div className="flex items-start gap-2">
                             <CreditCard className="h-4 w-4 text-amber-600 mt-0.5" />
                             <div className="text-sm">
                               <span className="font-medium text-slate-600">
                                 {language === 'zh' ? '案件金额：' : 'Amount: '}
                               </span>
-                              <span className="text-slate-900 font-semibold">{(risk as any).amount}</span>
+                              <span className="text-slate-900 font-semibold">{(risk as any).案件金额 || (risk as any).amount}</span>
                             </div>
                           </div>
                         )}
 
                         {/* 发布日期 */}
-                        {(risk as any).publishDate && (
+                        {((risk as any).发布日期 || (risk as any).publishDate) && (
                           <div className="flex items-center gap-2 text-xs text-slate-500">
                             <Calendar className="h-3 w-3" />
                             <span>
                               {language === 'zh' ? '发布日期：' : 'Published: '}
-                              {(risk as any).publishDate}
+                              {(risk as any).发布日期 || (risk as any).publishDate}
                             </span>
                           </div>
                         )}
