@@ -3,7 +3,7 @@ import { useFavorites } from '../hooks/useFavorites';
 import { Heart } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Search, Bookmark, Share2, HelpCircle, Sparkles, MessageCircle } from 'lucide-react';
+import { BookOpen, Search, Bookmark, HelpCircle, Sparkles, MessageCircle } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useAIChat } from '../contexts/AIChatContext';
 
@@ -315,10 +315,7 @@ export default function KnowledgeCards() {
                     >
                       <Bookmark className={`h-4 w-4 ${pinnedCards[card.id] ? 'fill-current' : ''}`} />
                     </button>
-                    <button className="text-slate-300 hover:text-blue-600">
-                      <Share2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                    </div>
                 </div>
                 <h3 className="mb-3 text-lg font-bold text-slate-900 group-hover:text-blue-600">
                   {card.title}

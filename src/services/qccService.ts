@@ -69,12 +69,16 @@ export interface CompanyRiskReport {
     laborDisputeCount: number;     // 劳动纠纷数量
     judicialRiskCount: number;     // 司法风险数量
     abnormalCount: number;         // 经营异常数量
-    overallRiskLevel: 'low' | 'medium' | 'high'; // 综合风险等级
+    overallRiskLevel: 'low' | 'medium' | 'high' | 'unknown'; // 综合风险等级
   };
   
   // 查询元信息
   queryTime: string;              // 查询时间
   dataUpdateDate: string;          // 数据更新日期
+  
+  // 未找到企业标志
+  notFound?: boolean;
+  message?: string;
 }
 
 /**

@@ -10,7 +10,8 @@
       "Bash(npm install:*)",
       "Bash(npm list:*)",
       "Bash(ls:*)",
-      "Bash(curl -s http://localhost:5173)"
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(git add:*)"
     ]
   }
 }

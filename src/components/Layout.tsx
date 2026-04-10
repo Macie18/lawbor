@@ -43,7 +43,7 @@ export default function Layout() {
             </button>
             <Link to="/" className="flex items-center gap-2 font-bold text-blue-600">
               <span className="text-sm font-medium text-slate-400 sm:inline-block">
-                托起你的职场第一步
+                Lawbor托起你的职场第一步
               </span>
             </Link>
           </div>

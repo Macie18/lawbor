@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, X, Send, ShieldCheck, Loader2, ExternalLink, MapPin, History, Trash2 } from 'lucide-react';
+import { MessageSquare, X, Send, ShieldCheck, Loader2, ExternalLink, MapPin, History, Trash2, Building2, AlertTriangle, TrendingUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../lib/utils';
@@ -11,6 +11,7 @@ import { useAIChat } from '../contexts/AIChatContext';
 // ✅ 新增：导入认证和数据持久化 Hook
 import { useAuth } from '../contexts/AuthContext';
 import { useConversationHistory } from '../hooks/useConversationHistory';
+import { queryCompanyRisk } from '../services/qccService';
 
 interface Message {
   role: 'user' | 'model' | 'system';
@@ -24,6 +25,8 @@ export default function AIChat() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [companyRiskResult, setCompanyRiskResult] = useState<any>(null);
+  const [loadingRisk, setLoadingRisk] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // ✅ 新增：用户认证和对话历史状态
@@ -269,14 +272,16 @@ export default function AIChat() {
                       {(() => {
   const text = msg.text;
   
-  // 1. 使用正则表达式匹配所有的路由跳转和地图导航标签
+  // 1. 使用正则表达式匹配所有的路由跳转、地图导航和企业风险查询标签
   const routeMatches = Array.from(text.matchAll(/\[跳转:([^|]+)\|([^\]]+)\]/g));
   const mapMatches = Array.from(text.matchAll(/\[地图导航:([^\]]+)\]/g));
+  const companyRiskMatches = Array.from(text.matchAll(/\[企业风险:([^\]]+)\]/g));
   
   // 2. 从展示给用户的纯文本中抹除这些标签
   const cleanText = text
     .replace(/\[跳转:[^\]]+\]/g, '')
-    .replace(/\[地图导航:[^\]]+\]/g, '');
+    .replace(/\[地图导航:[^\]]+\]/g, '')
+    .replace(/\[企业风险:[^\]]+\]/g, '');
 
   return (
     <div className="flex flex-col gap-3">
@@ -323,6 +328,46 @@ export default function AIChat() {
           ))}
         </div>
       )}
+
+      {/* 动态渲染【企业风险查询】卡片 */}
+      {companyRiskMatches.length > 0 && (
+        <div className="flex flex-col gap-2 mt-1">
+          {companyRiskMatches.map((match, idx) => (
+            <button
+              key={`company-${idx}`}
+              onClick={async () => {
+                const companyName = match[1];
+                setLoadingRisk(true);
+                setCompanyRiskResult(null);
+                
+                try {
+                  const result = await queryCompanyRisk(companyName);
+                  setCompanyRiskResult(result);
+                } catch (error) {
+                  console.error('企业风险查询失败:', error);
+                  alert(language === 'zh' ? '查询企业风险失败，请稍后重试' : 'Failed to query company risk');
+                } finally {
+                  setLoadingRisk(false);
+                }
+              }}
+              disabled={loadingRisk}
+              className="flex items-center gap-2 rounded-xl bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-600 transition-colors hover:bg-violet-100 w-fit text-left shadow-sm border border-violet-100 disabled:opacity-50"
+            >
+              {loadingRisk ? (
+                <>
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                  {language === 'zh' ? '查询中...' : 'Querying...'}
+                </>
+              ) : (
+                <>
+                  <Building2 className="h-4 w-4 shrink-0" />
+                  {language === 'zh' ? `查询 "${match[1]}" 企业风险` : `Query "${match[1]}" Risk`}
+                </>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 })()}
@@ -335,6 +380,62 @@ export default function AIChat() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span className="text-xs">{t('chat.thinking')}</span>
                 </div>
+              )}
+
+              {/* ✅ 企业风险查询结果卡片 */}
+              {companyRiskResult && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-2xl border-2 border-violet-200 bg-violet-50 p-4"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-violet-600" />
+                      <span className="font-bold text-violet-900">
+                        {companyRiskResult.companyInfo?.name || '企业风险报告'}
+                      </span>
+                    </div>
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-xs font-bold",
+                      companyRiskResult.riskSummary?.overallRiskLevel === 'low' && "bg-emerald-100 text-emerald-700",
+                      companyRiskResult.riskSummary?.overallRiskLevel === 'medium' && "bg-amber-100 text-amber-700",
+                      companyRiskResult.riskSummary?.overallRiskLevel === 'high' && "bg-red-100 text-red-700",
+                      companyRiskResult.riskSummary?.overallRiskLevel === 'unknown' && "bg-slate-100 text-slate-600"
+                    )}>
+                      {companyRiskResult.riskSummary?.overallRiskLevel === 'low' && (language === 'zh' ? '低风险' : 'Low')}
+                      {companyRiskResult.riskSummary?.overallRiskLevel === 'medium' && (language === 'zh' ? '中风险' : 'Medium')}
+                      {companyRiskResult.riskSummary?.overallRiskLevel === 'high' && (language === 'zh' ? '高风险' : 'High')}
+                      {companyRiskResult.riskSummary?.overallRiskLevel === 'unknown' && (language === 'zh' ? '未找到' : 'Not Found')}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="text-center p-2 bg-white rounded-lg">
+                      <div className="text-lg font-bold text-violet-600">{companyRiskResult.riskSummary?.laborDisputeCount || 0}</div>
+                      <div className="text-[10px] text-slate-500">{language === 'zh' ? '劳动纠纷' : 'Disputes'}</div>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded-lg">
+                      <div className="text-lg font-bold text-amber-600">{companyRiskResult.riskSummary?.judicialRiskCount || 0}</div>
+                      <div className="text-[10px] text-slate-500">{language === 'zh' ? '司法风险' : 'Judicial'}</div>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded-lg">
+                      <div className="text-lg font-bold text-rose-600">{companyRiskResult.riskSummary?.abnormalCount || 0}</div>
+                      <div className="text-[10px] text-slate-500">{language === 'zh' ? '经营异常' : 'Abnormal'}</div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      navigate('/contract');
+                    }}
+                    className="flex items-center gap-2 w-full justify-center rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700 transition-colors"
+                  >
+                    <TrendingUp className="h-4 w-4" />
+                    {language === 'zh' ? '查看详细报告' : 'View Full Report'}
+                  </button>
+                </motion.div>
               )}
             </div>
 

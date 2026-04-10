@@ -4,54 +4,165 @@ import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import { VoiceCallService } from './src/services/voiceCallService';
 
-// ✅ 企查查 MCP API 配置
+// ✅ 企查查 API 配置
 const QCC_API_KEY = process.env.QCC_API_KEY || 'MsYrFNGHpfRi3g03nL3Fe3CyDZ9dfwgqOhDzQGGDCCvUerrP';
 const QCC_MCP_ENDPOINTS = {
   company: 'https://agent.qcc.com/mcp/company/stream',
   risk: 'https://agent.qcc.com/mcp/risk/stream',
 };
+// ✅ 开发环境优先使用 CLI（更省 token）
+const USE_CLI = process.env.NODE_ENV !== 'production' && process.env.QCC_USE_CLI !== 'false';
 
-// ✅ 企查查 MCP API 调用函数
+// ✅ CLI 命令执行函数（开发环境）
+import { exec } from 'child_process';
+import { promisify } from 'util';
+const execAsync = promisify(exec);
+
+async function callQccCli(service: 'company' | 'risk', toolName: string, args: Record<string, any>): Promise<any> {
+  // CLI 格式: npx qcc <服务名> <工具名> --参数 值
+  const argsList = Object.entries(args)
+    .map(([key, value]) => `--${key} "${value}"`)
+    .join(' ');
+  const command = `npx qcc ${service} ${toolName} ${argsList}`;
+  
+  console.log(`[QCC CLI] 执行命令: ${command}`);
+  
+  try {
+    const { stdout, stderr } = await execAsync(command, {
+      timeout: 30000,
+      maxBuffer: 1024 * 1024, // 1MB
+    });
+    
+    if (stderr && !stdout) {
+      console.error(`[QCC CLI] 错误输出:`, stderr);
+      throw new Error(stderr);
+    }
+    
+    console.log(`[QCC CLI] 成功，响应长度: ${stdout.length}`);
+    
+    // CLI 返回 JSON 格式
+    try {
+      return JSON.parse(stdout);
+    } catch {
+      // 如果不是 JSON，返回原始文本
+      return { raw: stdout };
+    }
+  } catch (error: any) {
+    console.error(`[QCC CLI] 执行失败:`, error.message);
+    throw error;
+  }
+}
 async function callQccMcpApi(serverName: string, toolName: string, args: Record<string, any>): Promise<any> {
   const endpoint = serverName === 'company' ? QCC_MCP_ENDPOINTS.company : QCC_MCP_ENDPOINTS.risk;
+  
+  // 生成唯一请求 ID
+  const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  // ✅ MCP 使用 JSON-RPC 2.0 格式
+  const requestBody = {
+    jsonrpc: '2.0',
+    id: requestId,
+    method: 'tools/call',
+    params: {
+      name: toolName,
+      arguments: args,
+    },
+  };
+  
+  console.log(`[QCC MCP] 调用 ${serverName}/${toolName}`, JSON.stringify(requestBody, null, 2));
   
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
       'Authorization': `Bearer ${QCC_API_KEY}`,
     },
-    body: JSON.stringify({
-      tool: toolName,
-      arguments: args,
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[QCC MCP] 请求失败: ${response.status} ${response.statusText}`, errorText);
     throw new Error(`企查查 API 调用失败: ${response.status} ${response.statusText}`);
   }
 
   // MCP API 返回 SSE 流式数据，解析为 JSON
   const text = await response.text();
+  console.log(`[QCC MCP] 原始响应长度: ${text.length} 字符`);
+  console.log(`[QCC MCP] 原始响应内容:`, text.substring(0, 1000));
   
   // 尝试解析 SSE 格式: "data: {...}\n\n"
-  const lines = text.split('\n').filter(line => line.startsWith('data: '));
+  const lines = text.split('\n').filter(line => line.trim().startsWith('data: '));
   if (lines.length > 0) {
-    const lastLine = lines[lines.length - 1];
-    const jsonStr = lastLine.replace('data: ', '');
-    try {
-      return JSON.parse(jsonStr);
-    } catch {
-      return { raw: jsonStr };
+    // 合并所有 data 行的结果
+    const results: any[] = [];
+    for (const line of lines) {
+      const jsonStr = line.trim().replace('data: ', '');
+      try {
+        const parsed = JSON.parse(jsonStr);
+        // 检查 JSON-RPC 响应格式
+        if (parsed.result) {
+          results.push(parsed.result);
+        } else if (parsed.error) {
+          console.error(`[QCC MCP] JSON-RPC 错误:`, parsed.error);
+          throw new Error(parsed.error.message || 'API 返回错误');
+        } else {
+          results.push(parsed);
+        }
+      } catch (e) {
+        console.warn(`[QCC MCP] 解析行失败:`, jsonStr.substring(0, 200));
+      }
+    }
+    // 返回最后一个有效结果
+    if (results.length > 0) {
+      console.log(`[QCC MCP] 解析到 ${results.length} 个结果，返回最后一个:`, JSON.stringify(results[results.length - 1], null, 2).substring(0, 500));
+      return results[results.length - 1];
     }
   }
   
-  // 直接解析 JSON
+  // 直接解析 JSON（非 SSE 格式）
   try {
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    if (parsed.result) {
+      return parsed.result;
+    } else if (parsed.error) {
+      throw new Error(parsed.error.message || 'API 返回错误');
+    }
+    return parsed;
   } catch {
+    console.warn(`[QCC MCP] 无法解析响应:`, text.substring(0, 500));
     return { raw: text };
   }
+}
+
+// ✅ 获取 MCP 服务器的可用工具列表
+async function listQccMcpTools(serverName: string): Promise<any> {
+  const endpoint = serverName === 'company' ? QCC_MCP_ENDPOINTS.company : QCC_MCP_ENDPOINTS.risk;
+  
+  const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  const requestBody = {
+    jsonrpc: '2.0',
+    id: requestId,
+    method: 'tools/list',
+  };
+  
+  console.log(`[QCC MCP] 列出工具: ${serverName}`);
+  
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'Authorization': `Bearer ${QCC_API_KEY}`,
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  const text = await response.text();
+  console.log(`[QCC MCP] 工具列表响应:`, text);
+  return text;
 }
 
 async function startServer() {
@@ -63,6 +174,20 @@ async function startServer() {
     res.json({ status: 'ok' });
   });
 
+  // ✅ 调试接口：列出企查查 MCP 可用工具
+  app.get('/api/qcc/tools', async (req, res) => {
+    try {
+      const companyTools = await listQccMcpTools('company');
+      const riskTools = await listQccMcpTools('risk');
+      res.json({
+        company: companyTools,
+        risk: riskTools,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : '未知错误' });
+    }
+  });
+
   // ✅ 企查查企业风险查询 API
   app.post('/api/qcc/company-risk', express.json(), async (req, res) => {
     const { companyName, options } = req.body;
@@ -72,44 +197,257 @@ async function startServer() {
     }
 
     try {
-      console.log(`[QCC API] 正在查询企业: ${companyName}`);
+      console.log(`[QCC API] 正在查询企业: ${companyName}, 模式: ${USE_CLI ? 'CLI' : 'MCP'}`);
       
-      // 1. 查询企业工商信息 (MCP API)
-      const companyInfoResult = await callQccMcpApi('company', 'get_company_registration_info', {
-        companyName: companyName,
-      });
+      // ✅ 根据环境选择调用方式
+      let companyInfoResult: any;
+      let caseFilingResult: any = {};
+      let judicialDocsResult: any = {};
+      let businessExceptionResult: any = {};
+      let dishonestResult: any = {};
       
-      // 解析企业信息
-      const companyData = companyInfoResult?.data || companyInfoResult || {};
+      if (USE_CLI) {
+        // ✅ 开发环境：使用 CLI（更省 token，更快）
+        try {
+          companyInfoResult = await callQccCli('company', 'get_company_registration_info', { searchKey: companyName });
+          // 并行查询风险信息
+          [caseFilingResult, judicialDocsResult, businessExceptionResult, dishonestResult] = await Promise.all([
+            callQccCli('risk', 'get_case_filing_info', { searchKey: companyName }).catch(() => ({})),
+            callQccCli('risk', 'get_judicial_documents', { searchKey: companyName }).catch(() => ({})),
+            callQccCli('risk', 'get_business_exception', { searchKey: companyName }).catch(() => ({})),
+            callQccCli('risk', 'get_dishonest_info', { searchKey: companyName }).catch(() => ({})),
+          ]);
+        } catch (cliError) {
+          console.warn('[QCC] CLI 调用失败，回退到 MCP:', cliError);
+          // CLI 失败时回退到 MCP
+          companyInfoResult = await callQccMcpApi('company', 'get_company_registration_info', { searchKey: companyName });
+          [caseFilingResult, judicialDocsResult, businessExceptionResult, dishonestResult] = await Promise.all([
+            callQccMcpApi('risk', 'get_case_filing_info', { searchKey: companyName }).catch(() => ({})),
+            callQccMcpApi('risk', 'get_judicial_documents', { searchKey: companyName }).catch(() => ({})),
+            callQccMcpApi('risk', 'get_business_exception', { searchKey: companyName }).catch(() => ({})),
+            callQccMcpApi('risk', 'get_dishonest_info', { searchKey: companyName }).catch(() => ({})),
+          ]);
+        }
+      } else {
+        // ✅ 生产环境：使用 MCP API
+        companyInfoResult = await callQccMcpApi('company', 'get_company_registration_info', { searchKey: companyName });
+        [caseFilingResult, judicialDocsResult, businessExceptionResult, dishonestResult] = await Promise.all([
+          callQccMcpApi('risk', 'get_case_filing_info', { searchKey: companyName }).catch(() => ({})),
+          callQccMcpApi('risk', 'get_judicial_documents', { searchKey: companyName }).catch(() => ({})),
+          callQccMcpApi('risk', 'get_business_exception', { searchKey: companyName }).catch(() => ({})),
+          callQccMcpApi('risk', 'get_dishonest_info', { searchKey: companyName }).catch(() => ({})),
+        ]);
+      }
       
-      // 2. 并行查询风险信息 (MCP API)
-      const [caseFilingResult, judicialDocsResult, businessExceptionResult, dishonestResult] = await Promise.all([
-        // 法院立案信息
-        callQccMcpApi('risk', 'get_case_filing_info', { companyName }).catch(() => ({})),
-        // 法院判决文书
-        callQccMcpApi('risk', 'get_judicial_documents', { companyName }).catch(() => ({})),
-        // 经营异常
-        callQccMcpApi('risk', 'get_business_exception', { companyName }).catch(() => ({})),
-        // 失信信息
-        callQccMcpApi('risk', 'get_dishonest_info', { companyName }).catch(() => ({})),
-      ]);
+      console.log(`[QCC API] 企业信息结果:`, JSON.stringify(companyInfoResult, null, 2));
       
-      // 解析风险数据
-      const parseRiskData = (result: any): any[] => {
-        if (!result || result.error || !result.data) return [];
-        const data = result.data;
-        if (Array.isArray(data)) return data;
-        if (data.items && Array.isArray(data.items)) return data.items;
+      // 解析企业信息 - 根据实际返回格式调整
+      let companyData: any = {};
+      if (companyInfoResult?.content && Array.isArray(companyInfoResult.content)) {
+        // MCP 返回格式: { content: [{ type: "text", text: "..." }] }
+        const textContent = companyInfoResult.content.find((c: any) => c.type === 'text');
+        if (textContent?.text) {
+          try {
+            companyData = JSON.parse(textContent.text);
+          } catch {
+            companyData = { raw: textContent.text };
+          }
+        }
+      } else {
+        companyData = companyInfoResult?.data || companyInfoResult || {};
+      }
+      
+      // ✅ 解析CLI纯文本格式
+      if (companyData.raw && typeof companyData.raw === 'string') {
+        const rawText = companyData.raw;
+        const extractedData: any = {};
+        
+        // 使用正则提取 "* 字段名: 值" 格式
+        const lines = rawText.split('\n');
+        for (const line of lines) {
+          const match = line.match(/^\* (.+?): (.+)$/);
+          if (match) {
+            const [, key, value] = match;
+            extractedData[key] = value;
+          }
+        }
+        
+        // 映射字段名到英文
+        if (Object.keys(extractedData).length > 0) {
+          companyData = {
+            name: extractedData['企业名称'] || companyName,
+            creditCode: extractedData['统一社会信用代码'] || '-',
+            legalPerson: extractedData['法定代表人'] || '-',
+            registeredCapital: extractedData['注册资本'] || '-',
+            establishDate: extractedData['成立日期'] || '-',
+            businessStatus: extractedData['登记状态'] || '-',
+            businessScope: extractedData['经营范围'] || '-',
+            address: extractedData['注册地址'] || '-',
+            businessType: extractedData['企业类型'] || '-',
+            insuredCount: extractedData['参保人数'] || '-',
+          };
+        }
+      }
+      
+      console.log(`[QCC API] 解析后的企业数据:`, JSON.stringify(companyData, null, 2));
+      
+      // ✅ 检查是否无匹配项 - CLI返回纯文本格式
+      const rawText = companyData.raw || '';
+      const hasErrorMessage = 
+        rawText.includes('地域限制') ||
+        rawText.includes('仅支持') ||
+        rawText.includes('无匹配项') ||
+        rawText.includes('未找到') ||
+        rawText.includes('查询失败');
+      
+      const isNotFound = 
+        companyData['无匹配项'] || // JSON格式
+        hasErrorMessage || // CLI文本错误信息
+        (typeof companyData === 'string' && companyData.includes('无匹配项')) || // 直接返回字符串
+        Object.keys(companyData).length === 0 || // 空对象
+        (companyData.name === '-' && companyData.creditCode === '-'); // 所有字段为空
+      
+      if (isNotFound) {
+        console.log(`[QCC API] 未找到企业: ${companyName}`);
+        
+        // 根据错误类型返回不同提示
+        let errorMessage = `未找到企业"${companyName}"，请确认企业名称是否正确。建议使用完整企业名称（如：XX科技有限公司）`;
+        if (rawText.includes('地域限制') || rawText.includes('仅支持')) {
+          errorMessage = `关键词"${companyName}"太模糊或不符合查询条件。请使用完整企业名称（如：北京三快在线科技有限公司）`;
+        }
+        
+        return res.json({
+          notFound: true,
+          message: errorMessage,
+          companyInfo: {
+            name: companyName,
+            creditCode: '-',
+            legalPerson: '-',
+            registeredCapital: '-',
+            establishDate: '-',
+            businessStatus: '-',
+            businessScope: '-',
+            address: '-',
+          },
+          laborDisputes: [],
+          judicialRisks: [],
+          businessAbnormals: [],
+          riskSummary: {
+            laborDisputeCount: 0,
+            judicialRiskCount: 0,
+            abnormalCount: 0,
+            hasDishonest: false,
+            overallRiskLevel: 'unknown' as const,
+          },
+          queryTime: new Date().toISOString(),
+          dataUpdateDate: new Date().toISOString().split('T')[0],
+        });
+      }
+      
+      // ✅ 解析风险数据 - 支持 Markdown 表格格式和 JSON 格式
+      const parseRiskData = (result: any, dataType: string): any[] => {
+        if (!result) return [];
+        
+        // CLI 返回纯文本格式（Markdown 表格）
+        if (result.raw && typeof result.raw === 'string') {
+          console.log(`[QCC API] 解析 ${dataType} 纯文本格式...`);
+          const items: any[] = [];
+          const rawText = result.raw;
+          
+          // ✅ 解析 Markdown 表格
+          const lines = rawText.split('\n');
+          let inTable = false;
+          let headers: string[] = [];
+          
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            
+            // 检测表格开始（包含 | 分隔符）
+            if (line.startsWith('|') && line.endsWith('|')) {
+              // 跳过分隔行（| :--- | :--- |）
+              if (line.includes(':---')) {
+                continue;
+              }
+              
+              // 提取表格内容
+              const cells = line.split('|')
+                .map(cell => cell.trim())
+                .filter(cell => cell.length > 0);
+              
+              if (!inTable) {
+                // 第一行是表头
+                headers = cells;
+                inTable = true;
+                console.log(`[QCC API] ${dataType} 表头:`, headers);
+              } else {
+                // 数据行
+                if (cells.length === headers.length) {
+                  const item: any = {};
+                  headers.forEach((header, index) => {
+                    // 字段名映射
+                    const keyMap: Record<string, string> = {
+                      '案号': 'caseNo',
+                      '案由': 'caseReason',
+                      '案件类型': 'caseType',
+                      '立案日期': 'filingDate',
+                      '开庭日期': 'trialDate',
+                      '原告': 'plaintiff',
+                      '被告': 'defendant',
+                      '当事人': 'parties',
+                      '法院': 'court',
+                      '案件状态': 'caseStatus',
+                      '执行标的': 'amount',
+                      '标的额': 'amount',
+                      '案件金额': 'amount',
+                      '文书标题': 'documentTitle',
+                      '裁判结果': 'judgmentResult',
+                      '裁判日期': 'judgmentDate',
+                      '发布日期': 'publishDate',
+                      '列入日期': 'includedDate',
+                      '列入原因': 'reason',
+                      '决定机关': 'authority',
+                      '移出日期': 'removedDate',
+                    };
+                    
+                    const mappedKey = keyMap[header] || header;
+                    item[mappedKey] = cells[index];
+                  });
+                  
+                  // 添加到列表
+                  if (Object.keys(item).length > 0) {
+                    items.push(item);
+                  }
+                }
+              }
+            } else if (inTable && !line.startsWith('|')) {
+              // 表格结束
+              inTable = false;
+            }
+          }
+          
+          console.log(`[QCC API] ${dataType} 解析结果: ${items.length} 条记录`);
+          return items;
+        }
+        
+        // MCP JSON 格式
+        if (result.error) return [];
+        if (result.data) {
+          const data = result.data;
+          if (Array.isArray(data)) return data;
+          if (data.items && Array.isArray(data.items)) return data.items;
+        }
         return [];
       };
       
-      // 筛选劳动纠纷案件
-      const caseFilingData = parseRiskData(caseFilingResult);
+      // ✅ 筛选劳动纠纷案件
+      const caseFilingData = parseRiskData(caseFilingResult, '立案信息');
+      console.log(`[QCC API] 立案信息数据:`, JSON.stringify(caseFilingData.slice(0, 2), null, 2));
+      
       const laborDisputes = caseFilingData.filter((item: any) => {
         const caseType = item.caseType || item.caseReason || item.案由 || '';
         return caseType.includes('劳动') || caseType.includes('工资') || 
                caseType.includes('工伤') || caseType.includes('社保') ||
-               caseType.includes('劳动合同');
+               caseType.includes('劳动合同') || caseType.includes('经济补偿');
       }).map((item: any) => ({
         caseNo: item.caseNo || item.caseNumber || item.案号 || '-',
         caseType: item.caseType || item.caseReason || item.案由 || '劳动争议',
@@ -121,9 +459,11 @@ async function startServer() {
         summary: item.summary || '劳动争议案件',
       }));
       
-      const judicialRisks = parseRiskData(judicialDocsResult);
-      const businessAbnormals = parseRiskData(businessExceptionResult);
-      const dishonestData = parseRiskData(dishonestResult);
+      const judicialRisks = parseRiskData(judicialDocsResult, '司法文书');
+      const businessAbnormals = parseRiskData(businessExceptionResult, '经营异常');
+      const dishonestData = parseRiskData(dishonestResult, '失信信息');
+      
+      console.log(`[QCC API] 风险统计: 劳动纠纷=${laborDisputes.length}, 司法风险=${judicialRisks.length}, 经营异常=${businessAbnormals.length}`);
       const hasDishonest = dishonestData.length > 0;
       
       // 计算风险等级
