@@ -3,6 +3,9 @@
  * 
  * 功能：将五大税务计算模块的内容导出为专业 PDF 报告
  * 使用 html2pdf.js，原生支持中文
+ * 
+ * 注意：由于 Tailwind CSS v4 使用 oklch 颜色格式，html2pdf.js 不支持
+ * 解决方案：临时禁用 Tailwind 样式表，生成完成后恢复
  */
 
 import html2pdf from 'html2pdf.js';
@@ -332,7 +335,7 @@ export function generateTaxReportPdf(data: TaxReportData): void {
     </div>
   `;
   
-  // PDF 配置
+  // PDF 配置 - 使用 iframe 隔离样式，禁用 foreignObject 避免 oklch 问题
   const opt = {
     margin: 10,
     filename: isZh 
@@ -342,7 +345,29 @@ export function generateTaxReportPdf(data: TaxReportData): void {
     html2canvas: { 
       scale: 2,
       useCORS: true,
-      letterRendering: true
+      logging: false,
+      backgroundColor: '#ffffff',
+      // 使用 foreignObjectRendering 可能更稳定
+      foreignObjectRendering: false,
+      // 在克隆时彻底清理样式
+      onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
+        // 移除所有外部样式表，只保留内联样式
+        const styleLinks = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
+        styleLinks.forEach(link => link.remove());
+        
+        const styleTags = clonedDoc.querySelectorAll('style:not(:first-child)');
+        styleTags.forEach(tag => tag.remove());
+        
+        // 添加一个覆盖样式来防止 oklch 渗透
+        const overrideStyle = clonedDoc.createElement('style');
+        overrideStyle.textContent = `
+          * {
+            background-color: transparent !important;
+            border-color: #e2e8f0 !important;
+          }
+        `;
+        clonedDoc.head.appendChild(overrideStyle);
+      }
     },
     jsPDF: { 
       unit: 'mm', 
@@ -351,6 +376,118 @@ export function generateTaxReportPdf(data: TaxReportData): void {
     }
   };
   
-  // 生成 PDF
-  html2pdf().set(opt).from(htmlContent).save();
+  // 创建 iframe 来完全隔离样式
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-9999px';
+  iframe.style.top = '0';
+  iframe.style.width = '800px';
+  iframe.style.height = '2000px';
+  iframe.style.border = 'none';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  document.body.appendChild(iframe);
+  
+  // 在 iframe 中写入内容（不继承父页面样式）
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!iframeDoc) {
+    document.body.removeChild(iframe);
+    console.error('无法创建 iframe 文档');
+    return;
+  }
+  
+  iframeDoc.open();
+  iframeDoc.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #ffffff; }
+      </style>
+    </head>
+    <body>${htmlContent}</body>
+    </html>
+  `);
+  iframeDoc.close();
+  
+  // 临时禁用父页面的 Tailwind 样式表（包含 oklch 颜色）
+  const tailwindStyles = document.querySelectorAll('style[data-tailwind], style[id*="tailwind"], link[href*="tailwind"]');
+  const disabledStyles: Array<{ el: HTMLStyleElement | HTMLLinkElement; wasDisabled: boolean }> = [];
+  
+  tailwindStyles.forEach((el) => {
+    const styleEl = el as HTMLStyleElement | HTMLLinkElement;
+    disabledStyles.push({ el: styleEl, wasDisabled: styleEl.disabled });
+    styleEl.disabled = true;
+  });
+  
+  // 同时临时移除所有 style 标签（可能包含 Tailwind 生成的样式）
+  const allStyles = document.querySelectorAll('style');
+  const removedStyles: Array<{ el: HTMLStyleElement; parent: Element | null; nextSibling: Node | null }> = [];
+  
+  allStyles.forEach((style) => {
+    // 只移除可能包含 oklch 的样式
+    if (style.textContent && style.textContent.includes('oklch')) {
+      removedStyles.push({
+        el: style,
+        parent: style.parentElement,
+        nextSibling: style.nextSibling
+      });
+      style.remove();
+    }
+  });
+  
+  // 等待 iframe 渲染完成
+  setTimeout(() => {
+    const iframeBody = iframeDoc.body;
+    
+    html2pdf()
+      .set(opt)
+      .from(iframeBody)
+      .save()
+      .then(() => {
+        // 清理 iframe
+        document.body.removeChild(iframe);
+        
+        // 恢复被禁用的样式表
+        disabledStyles.forEach(({ el, wasDisabled }) => {
+          el.disabled = wasDisabled;
+        });
+        
+        // 恢复被移除的样式标签
+        removedStyles.forEach(({ el, parent, nextSibling }) => {
+          if (parent) {
+            if (nextSibling) {
+              parent.insertBefore(el, nextSibling);
+            } else {
+              parent.appendChild(el);
+            }
+          }
+        });
+      })
+      .catch((err: Error) => {
+        console.error('PDF生成失败:', err);
+        
+        // 清理
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+        
+        // 恢复样式
+        disabledStyles.forEach(({ el, wasDisabled }) => {
+          el.disabled = wasDisabled;
+        });
+        
+        removedStyles.forEach(({ el, parent, nextSibling }) => {
+          if (parent) {
+            if (nextSibling) {
+              parent.insertBefore(el, nextSibling);
+            } else {
+              parent.appendChild(el);
+            }
+          }
+        });
+      });
+  }, 200);
 }

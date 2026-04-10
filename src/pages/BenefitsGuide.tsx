@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, ShieldCheck, Umbrella, Home, Baby, Info, ChevronDown, MapPin, Globe, Sparkles, Loader2, AlertCircle, ArrowUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -202,21 +203,26 @@ export default function BenefitsGuide() {
     return () => observer.disconnect();
   }, [toc]);
 
-  // Show/hide back to top button - 监听窗口滚动
+  // Show/hide back to top button - 监听窗口和文档滚动
   useEffect(() => {
     const handleScroll = () => {
-      // 检查窗口滚动
-      const windowScrolled = window.scrollY || document.documentElement.scrollTop;
-      setShowBackToTop(windowScrolled > 300);
+      // 多种方式检测滚动位置
+      const windowScrolled = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      const shouldShow = windowScrolled > 150;
+      console.log('[BenefitsGuide] Scroll position:', windowScrolled, 'Show button:', shouldShow);
+      setShowBackToTop(shouldShow);
     };
 
     // 初始检查
     handleScroll();
 
+    // 同时监听 window 和 document 的滚动
     window.addEventListener('scroll', handleScroll, { passive: true });
+    document.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('scroll', handleScroll);
     };
   }, []);
 
@@ -517,21 +523,24 @@ export default function BenefitsGuide() {
         )}
       </AnimatePresence>
 
-      {/* Back to top button */}
-      <AnimatePresence>
-        {showBackToTop && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            onClick={scrollToTop}
-            className="fixed bottom-8 right-8 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-colors"
-            aria-label={isEn ? 'Back to top' : '回到顶部'}
-          >
-            <ArrowUp className="h-5 w-5" />
-          </motion.button>
-        )}
-      </AnimatePresence>
+      {/* Back to top button - 使用 Portal 渲染到 body，放在 AI 按钮左边 */}
+      {createPortal(
+        <AnimatePresence>
+          {showBackToTop && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={scrollToTop}
+              className="fixed bottom-6 right-24 z-[9999] flex h-12 w-12 items-center justify-center rounded-full bg-slate-600 text-white shadow-lg hover:bg-slate-700 transition-colors"
+              aria-label={isEn ? 'Back to top' : '回到顶部'}
+            >
+              <ArrowUp className="h-5 w-5" />
+            </motion.button>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
