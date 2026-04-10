@@ -295,22 +295,26 @@ export default function CompanyRiskPage() {
                 )}
 
                 <div className="flex items-start justify-between mb-2">
-                  <span className="font-mono text-xs text-slate-500">{dispute.caseNo}</span>
+                  <span className="font-mono text-xs text-slate-500">
+                    {(dispute as any).案号 || dispute.caseNo}
+                  </span>
                   <span className={`text-xs px-2 py-1 rounded-full ${
                     isRecent ? 'bg-orange-100 text-orange-700' : 'bg-violet-100 text-violet-700'
                   }`}>
-                    {dispute.caseType}
+                    {(dispute as any).案由 || dispute.caseType || dispute.caseReason}
                   </span>
                 </div>
 
-                <p className="text-sm text-slate-600 mb-2">{dispute.summary}</p>
+                <p className="text-sm text-slate-600 mb-2">
+                  {(dispute as any).法院 || '点击查看详情'}
+                </p>
 
                 <div className="flex items-center gap-4 text-xs text-slate-400 mb-2">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    {dispute.filingDate}
+                    {(dispute as any).立案日期 || dispute.filingDate}
                   </span>
-                  <span>{dispute.caseStatus}</span>
+                  {(dispute as any).案件状态 && <span>{(dispute as any).案件状态}</span>}
                 </div>
 
                 <button
@@ -459,26 +463,39 @@ export default function CompanyRiskPage() {
                 )}
 
                 <div className="flex items-start justify-between mb-2">
-                  <span className="font-mono text-xs text-slate-500">{risk.caseNo}</span>
+                  <span className="font-mono text-xs text-slate-500">
+                    {(risk as any).案号 || risk.caseNo}
+                  </span>
                   <span className={`text-xs px-2 py-1 rounded-full ${
                     isRecent ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
                   }`}>
-                    {risk.caseType || risk.caseReason}
+                    {(risk as any).案由 || risk.caseType || risk.caseReason}
                   </span>
                 </div>
 
-                {risk.court && (
-                  <p className="text-sm text-slate-600 mb-2">{risk.court}</p>
+                {/* 文书标题作为预览 */}
+                {((risk as any).文书标题 || (risk as any).documentTitle) && (
+                  <p className="text-sm font-medium text-slate-900 mb-2">
+                    {(risk as any).文书标题 || (risk as any).documentTitle}
+                  </p>
+                )}
+
+                {((risk as any).法院 || risk.court) && (
+                  <p className="text-sm text-slate-600 mb-2">
+                    {(risk as any).法院 || risk.court}
+                  </p>
                 )}
 
                 <div className="flex items-center gap-4 text-xs text-slate-400 mb-2">
-                  {risk.filingDate && (
+                  {((risk as any).立案日期 || (risk as any).裁判日期 || risk.filingDate) && (
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {risk.filingDate}
+                      {(risk as any).立案日期 || (risk as any).裁判日期 || risk.filingDate}
                     </span>
                   )}
-                  {risk.amount && <span>标的：{risk.amount}</span>}
+                  {((risk as any).案件金额 || risk.amount) && ((risk as any).案件金额 !== '' || risk.amount) && (
+                    <span>标的：{(risk as any).案件金额 || risk.amount}</span>
+                  )}
                 </div>
 
                 <button
