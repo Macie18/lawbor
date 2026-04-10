@@ -70,19 +70,50 @@ export default function Arbitration() {
     }
 
     const docInfo = DOCUMENT_FILES[selectedCase];
+    if (!docInfo) {
+      message.error(language === 'zh' ? '文档信息未找到' : 'Document info not found');
+      return;
+    }
+    
     const caseName = t(`arbitration.case.${selectedCase}`);
-    message.loading(`${t('arbitration.downloading')}: ${caseName}...`, 1);
+    message.loading(`${t('arbitration.downloading')}: ${caseName}...`, 1.5);
     
     // 直接指向 public/templates 下的文件路径
     const fileUrl = `/templates/${docInfo.file}`;
+    console.log('下载文件:', fileUrl, '原文件名:', docInfo.originalName);
   
     // 创建隐藏的 a 标签进行下载
     const link = document.createElement('a');
     link.href = fileUrl;
     link.download = docInfo.originalName;
+    link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    
+    // 延迟移除
+    setTimeout(() => {
+      document.body.removeChild(link);
+    }, 100);
+    
+    message.success(language === 'zh' ? '下载已开始' : 'Download started');
+  };
+
+  // 快速下载通用模板
+  const handleQuickDownload = (caseKey: string) => {
+    const docInfo = DOCUMENT_FILES[caseKey];
+    if (!docInfo) return;
+    
+    message.loading(`${t('arbitration.downloading')}...`, 1);
+    const fileUrl = `/templates/${docInfo.file}`;
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = docInfo.originalName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+    }, 100);
   };
 
   // 流程步骤数据

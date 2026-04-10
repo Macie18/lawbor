@@ -202,22 +202,32 @@ export default function BenefitsGuide() {
     return () => observer.disconnect();
   }, [toc]);
 
-  // Show/hide back to top button
+  // Show/hide back to top button - 监听窗口滚动
   useEffect(() => {
     const handleScroll = () => {
-      const scrolled = window.scrollY || document.documentElement.scrollTop;
-      setShowBackToTop(scrolled > 300);
+      // 检查窗口滚动
+      const windowScrolled = window.scrollY || document.documentElement.scrollTop;
+      setShowBackToTop(windowScrolled > 300);
     };
 
     // 初始检查
     handleScroll();
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
+  // 改进的回到顶部函数 - 同时处理窗口和容器滚动
   const scrollToTop = () => {
+    // 滚动窗口到顶部
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    // 如果有内容容器，也滚动它到顶部
+    if (contentRef.current) {
+      contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const fetchMarkdown = async (cityId: string, lang: 'zh' | 'en') => {

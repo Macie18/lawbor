@@ -1,15 +1,23 @@
 /**
  * 简历诊所组件
  * 允许用户上传 PDF 简历，分析并生成改进建议
+ * 支持保存历史记录到 Supabase
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, FileText, CheckCircle2, AlertCircle, Loader2, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, AlertCircle, Loader2, X, ChevronDown, ChevronUp, History, Trash2, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTranslation } from '../contexts/TranslationContext';
 import { parsePDF, isPDFFile } from '../services/pdfParser';
 import { analyzeResume, type ResumeAnalysis } from '../services/resumeAnalysisService';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  saveResumeAnalysis,
+  getResumeAnalysisHistory,
+  deleteResumeAnalysis,
+  type ResumeAnalysisRecord,
+} from '../services/resumeSupabaseService';
 
 interface ResumeClinicProps {
   onAnalysisComplete?: (analysis: ResumeAnalysis, resumeText: string) => void;
@@ -18,13 +26,48 @@ interface ResumeClinicProps {
 
 export function ResumeClinic({ onAnalysisComplete, compact = false }: ResumeClinicProps) {
   const { t, language } = useTranslation();
+  const { user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
   const [fileName, setFileName] = useState<string>('');
+  const [resumeText, setResumeText] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<ResumeAnalysisRecord[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 加载历史记录
+  useEffect(() => {
+    if (user) {
+      loadHistory();
+    }
+  }, [user]);
+
+  const loadHistory = async () => {
+    setIsLoadingHistory(true);
+    const records = await getResumeAnalysisHistory(10);
+    setHistory(records);
+    setIsLoadingHistory(false);
+  };
+
+  const handleDeleteHistory = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const success = await deleteResumeAnalysis(id);
+    if (success) {
+      setHistory(history.filter((h) => h.id !== id));
+    }
+  };
+
+  const handleLoadHistory = (record: ResumeAnalysisRecord) => {
+    setAnalysis(record.analysis_result);
+    setFileName(record.file_name);
+    setResumeText(record.resume_text || '');
+    onAnalysisComplete?.(record.analysis_result, record.resume_text || '');
+    setShowHistory(false);
+  };
 
   const handleFileSelect = async (file: File) => {
     if (!isPDFFile(file)) {
@@ -50,10 +93,18 @@ export function ResumeClinic({ onAnalysisComplete, compact = false }: ResumeClin
       // 分析简历
       const result = await analyzeResume(parsed.text, language);
       setAnalysis(result);
+      setResumeText(parsed.text);
       setIsAnalyzing(false);
 
       // 通知父组件
       onAnalysisComplete?.(result, parsed.text);
+
+      // 如果用户已登录，保存到数据库
+      if (user) {
+        await saveResumeAnalysis(file.name, result, parsed.text);
+        // 刷新历史记录
+        loadHistory();
+      }
     } catch (err) {
       setIsUploading(false);
       setIsAnalyzing(false);
@@ -80,11 +131,22 @@ export function ResumeClinic({ onAnalysisComplete, compact = false }: ResumeClin
   const reset = () => {
     setAnalysis(null);
     setFileName('');
+    setResumeText('');
     setError(null);
     setShowDetails(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const isProcessing = isUploading || isAnalyzing;
@@ -114,6 +176,86 @@ export function ResumeClinic({ onAnalysisComplete, compact = false }: ResumeClin
 
   return (
     <div className="space-y-4">
+      {/* 历史记录按钮 */}
+      {user && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+              showHistory
+                ? "bg-blue-100 text-blue-700"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            )}
+          >
+            <History className="h-4 w-4" />
+            {language === 'zh' ? '历史记录' : 'History'}
+            {history.length > 0 && (
+              <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-xs text-white">
+                {history.length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* 历史记录面板 */}
+      <AnimatePresence>
+        {showHistory && user && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h4 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-700">
+                <History className="h-4 w-4" />
+                {language === 'zh' ? '简历分析历史' : 'Resume Analysis History'}
+              </h4>
+              
+              {isLoadingHistory ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                </div>
+              ) : history.length === 0 ? (
+                <p className="py-4 text-center text-sm text-slate-500">
+                  {language === 'zh' ? '暂无历史记录' : 'No history yet'}
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {history.map((record) => (
+                    <div
+                      key={record.id}
+                      onClick={() => handleLoadHistory(record)}
+                      className="group flex cursor-pointer items-center gap-3 rounded-xl bg-white p-3 transition-all hover:bg-blue-50 hover:shadow-sm"
+                    >
+                      <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-700">
+                          {record.file_name}
+                        </p>
+                        <p className="flex items-center gap-1 text-xs text-slate-400">
+                          <Clock className="h-3 w-3" />
+                          {formatDate(record.created_at)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={(e) => handleDeleteHistory(record.id, e)}
+                        className="opacity-0 rounded-full p-1.5 text-slate-400 transition-all hover:bg-rose-100 hover:text-rose-600 group-hover:opacity-100"
+                        title={language === 'zh' ? '删除' : 'Delete'}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 上传区域 */}
       <div
         onDrop={handleDrop}

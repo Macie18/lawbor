@@ -7,6 +7,7 @@ import KnowledgeCards from './pages/KnowledgeCards';
 import Arbitration from './pages/Arbitration';
 import BenefitsGuide from './pages/BenefitsGuide';
 import Interview from './pages/Interview';
+import Settings from './pages/Settings';
 import Layout from './components/Layout';
 import { AIChatProvider } from './contexts/AIChatContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/arbitration" element={<Arbitration />} />
               <Route path="/benefits" element={<BenefitsGuide />} />
               <Route path="/interview" element={<Interview />} />
+              <Route path="/settings" element={<Settings />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

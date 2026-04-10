@@ -104,9 +104,11 @@ export default function ContractReview() {
         setResult(reviewResult);
 
         // ✅ 新增：保存审查记录（仅登录用户）
-        if (user && selectedFile.name && reviewResult) {
+        if (user && reviewResult) {
+          // 生成默认名称：合同审查_日期_时间
+          const defaultName = `合同审查_${new Date().toLocaleDateString('zh-CN')}_${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
           await saveReview(
-            selectedFile.name,
+            defaultName,
             '合同',
             JSON.stringify(reviewResult)
           );
@@ -157,8 +159,10 @@ export default function ContractReview() {
         
         // ✅ 新增：保存审查记录（仅登录用户）
         if (user && reviewResult) {
+          // 生成默认名称：合同审查_日期_时间
+          const defaultName = `合同审查_${new Date().toLocaleDateString('zh-CN')}_${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
           await saveReview(
-            '文本输入合同',
+            defaultName,
             '合同',
             JSON.stringify(reviewResult)
           );
@@ -535,26 +539,84 @@ disabled:opacity-50"
             {language === 'zh' ? '历史审查记录' : 'Review History'}
           </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {reviews.map(review => (
-              <div key={review.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 truncate">{review.contract_name}</h3>
-                    <p className="text-sm text-gray-600">{review.contract_type}</p>
+            {reviews.map(review => {
+              // 解析存储的结果
+              let parsedResult: ContractReviewResult | null = null;
+              try {
+                parsedResult = JSON.parse(review.review_result);
+              } catch (e) {
+                console.error('解析审查结果失败:', e);
+              }
+              
+              // 计算风险等级统计
+              const stats = parsedResult ? {
+                high: parsedResult.riskAssessments.filter((r: any) => r.level === 'high').length,
+                medium: parsedResult.riskAssessments.filter((r: any) => r.level === 'medium').length,
+                low: parsedResult.riskAssessments.filter((r: any) => r.level === 'low').length,
+              } : { high: 0, medium: 0, low: 0 };
+              
+              return (
+                <div 
+                  key={review.id} 
+                  className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg transition-shadow cursor-pointer group"
+                  onClick={() => {
+                    if (parsedResult) {
+                      setResult(parsedResult);
+                      setActiveFilter('all');
+                      // 滚动到结果区域
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">{review.contract_name}</h3>
+                      <p className="text-sm text-gray-600">{review.contract_type}</p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteReview(review.id);
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                      title={language === 'zh' ? '删除' : 'Delete'}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => deleteReview(review.id)}
-                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                    title={language === 'zh' ? '删除' : 'Delete'}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  
+                  {/* 风险统计 */}
+                  {parsedResult && (
+                    <div className="flex gap-2 mb-3 flex-wrap">
+                      {stats.high > 0 && (
+                        <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">
+                          {language === 'zh' ? '高危' : 'High'}: {stats.high}
+                        </span>
+                      )}
+                      {stats.medium > 0 && (
+                        <span className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                          {language === 'zh' ? '中危' : 'Medium'}: {stats.medium}
+                        </span>
+                      )}
+                      {stats.low > 0 && (
+                        <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                          {language === 'zh' ? '低危' : 'Low'}: {stats.low}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-gray-400">
+                    {new Date(review.created_at).toLocaleString()}
+                  </p>
+                  
+                  {/* 点击提示 */}
+                  <div className="mt-2 text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {language === 'zh' ? '点击查看详情 →' : 'Click to view →'}
+                  </div>
                 </div>
-                <p className="text-xs text-gray-400">
-                  {new Date(review.created_at).toLocaleString()}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

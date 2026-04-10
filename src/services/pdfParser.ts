@@ -5,8 +5,8 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 设置 worker（浏览器端使用 CDN）
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// 设置 worker（浏览器端使用 jsDelivr CDN，比 cdnjs 更稳定）
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 export interface ParsedPDF {
   text: string;
