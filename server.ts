@@ -3,10 +3,56 @@ import { createServer as createViteServer } from 'vite';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import { VoiceCallService } from './src/services/voiceCallService';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 
-const execAsync = promisify(exec);
+// ✅ 企查查 MCP API 配置
+const QCC_API_KEY = process.env.QCC_API_KEY || 'MsYrFNGHpfRi3g03nL3Fe3CyDZ9dfwgqOhDzQGGDCCvUerrP';
+const QCC_MCP_ENDPOINTS = {
+  company: 'https://agent.qcc.com/mcp/company/stream',
+  risk: 'https://agent.qcc.com/mcp/risk/stream',
+};
+
+// ✅ 企查查 MCP API 调用函数
+async function callQccMcpApi(serverName: string, toolName: string, args: Record<string, any>): Promise<any> {
+  const endpoint = serverName === 'company' ? QCC_MCP_ENDPOINTS.company : QCC_MCP_ENDPOINTS.risk;
+  
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${QCC_API_KEY}`,
+    },
+    body: JSON.stringify({
+      tool: toolName,
+      arguments: args,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`企查查 API 调用失败: ${response.status} ${response.statusText}`);
+  }
+
+  // MCP API 返回 SSE 流式数据，解析为 JSON
+  const text = await response.text();
+  
+  // 尝试解析 SSE 格式: "data: {...}\n\n"
+  const lines = text.split('\n').filter(line => line.startsWith('data: '));
+  if (lines.length > 0) {
+    const lastLine = lines[lines.length - 1];
+    const jsonStr = lastLine.replace('data: ', '');
+    try {
+      return JSON.parse(jsonStr);
+    } catch {
+      return { raw: jsonStr };
+    }
+  }
+  
+  // 直接解析 JSON
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+}
 
 async function startServer() {
   const app = express();
@@ -28,88 +74,57 @@ async function startServer() {
     try {
       console.log(`[QCC API] 正在查询企业: ${companyName}`);
       
-      // 解析 CLI 输出（格式为 key: value）
-      const parseCliOutput = (output: string): Record<string, string> => {
-        const result: Record<string, string> = {};
-        const lines = output.split('\n');
-        for (const line of lines) {
-          const match = line.match(/^\*?\s*(.+?):\s*(.+)$/);
-          if (match) {
-            result[match[1].trim()] = match[2].trim();
-          }
-        }
-        return result;
-      };
+      // 1. 查询企业工商信息 (MCP API)
+      const companyInfoResult = await callQccMcpApi('company', 'get_company_registration_info', {
+        companyName: companyName,
+      });
       
-      // 1. 查询企业工商信息
-      const { stdout: companyInfoRaw } = await execAsync(
-        `npx qcc company get_company_registration_info "${companyName}"`,
-        { timeout: 30000 }
-      );
-      const companyData = parseCliOutput(companyInfoRaw);
+      // 解析企业信息
+      const companyData = companyInfoResult?.data || companyInfoResult || {};
       
-      // 2. 并行查询风险信息
-      const [caseFilingRaw, judicialDocsRaw, businessExceptionRaw, dishonestRaw] = await Promise.all([
+      // 2. 并行查询风险信息 (MCP API)
+      const [caseFilingResult, judicialDocsResult, businessExceptionResult, dishonestResult] = await Promise.all([
         // 法院立案信息
-        execAsync(`npx qcc risk get_case_filing_info "${companyName}"`, { timeout: 30000 }).catch(() => ({ stdout: '' })),
+        callQccMcpApi('risk', 'get_case_filing_info', { companyName }).catch(() => ({})),
         // 法院判决文书
-        execAsync(`npx qcc risk get_judicial_documents "${companyName}"`, { timeout: 30000 }).catch(() => ({ stdout: '' })),
+        callQccMcpApi('risk', 'get_judicial_documents', { companyName }).catch(() => ({})),
         // 经营异常
-        execAsync(`npx qcc risk get_business_exception "${companyName}"`, { timeout: 30000 }).catch(() => ({ stdout: '' })),
+        callQccMcpApi('risk', 'get_business_exception', { companyName }).catch(() => ({})),
         // 失信信息
-        execAsync(`npx qcc risk get_dishonest_info "${companyName}"`, { timeout: 30000 }).catch(() => ({ stdout: '' })),
+        callQccMcpApi('risk', 'get_dishonest_info', { companyName }).catch(() => ({})),
       ]);
       
-      // 解析风险信息（简化版，实际需要更复杂的解析）
-      const parseRiskItems = (output: string): any[] => {
-        if (!output || output.includes('未找到') || output.includes('无数据')) return [];
-        // 简单提取案件数量
-        const items: any[] = [];
-        const lines = output.split('\n').filter(l => l.trim() && !l.includes('正在调用'));
-        // 如果有数据行，提取关键信息
-        if (lines.length > 2) {
-          items.push({ raw: output.substring(0, 500) });
-        }
-        return items;
+      // 解析风险数据
+      const parseRiskData = (result: any): any[] => {
+        if (!result || result.error || !result.data) return [];
+        const data = result.data;
+        if (Array.isArray(data)) return data;
+        if (data.items && Array.isArray(data.items)) return data.items;
+        return [];
       };
       
-      const laborDisputes: any[] = [];
-      const judicialRisks: any[] = [];
-      const businessAbnormals: any[] = [];
+      // 筛选劳动纠纷案件
+      const caseFilingData = parseRiskData(caseFilingResult);
+      const laborDisputes = caseFilingData.filter((item: any) => {
+        const caseType = item.caseType || item.caseReason || item.案由 || '';
+        return caseType.includes('劳动') || caseType.includes('工资') || 
+               caseType.includes('工伤') || caseType.includes('社保') ||
+               caseType.includes('劳动合同');
+      }).map((item: any) => ({
+        caseNo: item.caseNo || item.caseNumber || item.案号 || '-',
+        caseType: item.caseType || item.caseReason || item.案由 || '劳动争议',
+        filingDate: item.filingDate || item.立案日期 || '-',
+        plaintiff: item.plaintiff || item.原告 || '-',
+        defendant: companyName,
+        caseStatus: item.caseStatus || item.案件状态 || '-',
+        amount: item.amount || item.标的额 || '-',
+        summary: item.summary || '劳动争议案件',
+      }));
       
-      // 分析法院立案信息，筛选劳动争议
-      if (caseFilingRaw.stdout) {
-        const caseLines = caseFilingRaw.stdout.split('\n');
-        let currentCase: any = {};
-        for (const line of caseLines) {
-          if (line.includes('案由') && (line.includes('劳动') || line.includes('工资') || line.includes('工伤'))) {
-            currentCase.caseType = line.split(':')[1]?.trim() || '劳动争议';
-          }
-          if (line.includes('案号')) {
-            currentCase.caseNo = line.split(':')[1]?.trim() || '-';
-          }
-          if (line.includes('立案日期')) {
-            currentCase.filingDate = line.split(':')[1]?.trim() || '-';
-          }
-          if (Object.keys(currentCase).length >= 2) {
-            laborDisputes.push({ ...currentCase, summary: '检测到劳动相关案件' });
-            currentCase = {};
-          }
-        }
-      }
-      
-      // 分析判决文书
-      if (judicialDocsRaw.stdout) {
-        judicialRisks.push(...parseRiskItems(judicialDocsRaw.stdout));
-      }
-      
-      // 分析经营异常
-      if (businessExceptionRaw.stdout && !businessExceptionRaw.stdout.includes('未找到')) {
-        businessAbnormals.push(...parseRiskItems(businessExceptionRaw.stdout));
-      }
-      
-      // 分析失信信息
-      const hasDishonest = dishonestRaw.stdout && !dishonestRaw.stdout.includes('未找到') && !dishonestRaw.stdout.includes('无数据');
+      const judicialRisks = parseRiskData(judicialDocsResult);
+      const businessAbnormals = parseRiskData(businessExceptionResult);
+      const dishonestData = parseRiskData(dishonestResult);
+      const hasDishonest = dishonestData.length > 0;
       
       // 计算风险等级
       const laborDisputeCount = laborDisputes.length;
@@ -126,20 +141,20 @@ async function startServer() {
       // 构建企业风险报告
       const report = {
         companyInfo: {
-          name: companyData['企业名称'] || companyName,
-          creditCode: companyData['统一社会信用代码'] || '-',
-          legalPerson: companyData['法定代表人'] || '-',
-          registeredCapital: companyData['注册资本'] || '-',
-          establishDate: companyData['成立日期'] || '-',
-          businessStatus: companyData['登记状态'] || '-',
-          businessScope: companyData['经营范围'] || '-',
-          address: companyData['注册地址'] || '-',
-          businessType: companyData['企业类型'] || '-',
-          insuredCount: companyData['参保人数'] || '-',
+          name: companyData.name || companyData.企业名称 || companyName,
+          creditCode: companyData.creditCode || companyData.统一社会信用代码 || '-',
+          legalPerson: companyData.legalPerson || companyData.法定代表人 || '-',
+          registeredCapital: companyData.registeredCapital || companyData.注册资本 || '-',
+          establishDate: companyData.establishDate || companyData.成立日期 || '-',
+          businessStatus: companyData.businessStatus || companyData.登记状态 || '-',
+          businessScope: companyData.businessScope || companyData.经营范围 || '-',
+          address: companyData.address || companyData.注册地址 || '-',
+          businessType: companyData.businessType || companyData.企业类型 || '-',
+          insuredCount: companyData.insuredCount || companyData.参保人数 || '-',
         },
         laborDisputes,
-        judicialRisks,
-        businessAbnormals,
+        judicialRisks: judicialRisks.slice(0, 5), // 限制数量
+        businessAbnormals: businessAbnormals.slice(0, 5),
         riskSummary: {
           laborDisputeCount,
           judicialRiskCount,
