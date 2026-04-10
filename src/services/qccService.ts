@@ -128,16 +128,18 @@ export async function queryCompanyRisk(
 export function extractCompanyNameFromContract(contractText: string): string | null {
   // 常见的公司名称模式
   const patterns = [
-    // 甲方：XXX有限公司
-    /甲方[：:]\s*([^\s，。；,.\n]{4,50}?(?:公司|企业|集团|中心|院|所|社))/,
+    // 甲方（用人单位）：XXX有限公司 - 允许前缀和冒号之间有任意字符
+    /甲方[^：:\n]*[：:]\s*([^\s，。；,.\n（）\(\)]{4,50}?(?:公司|企业|集团|中心|院|所|社))/,
     // 用人单位：XXX有限公司
-    /用人单位[：:]\s*([^\s，。；,.\n]{4,50}?(?:公司|企业|集团|中心|院|所|社))/,
+    /用人单位[^：:\n]*[：:]\s*([^\s，。；,.\n（）\(\)]{4,50}?(?:公司|企业|集团|中心|院|所|社))/,
     // 雇主：XXX有限公司
-    /雇主[：:]\s*([^\s，。；,.\n]{4,50}?(?:公司|企业|集团|中心|院|所|社))/,
+    /雇主[^：:\n]*[：:]\s*([^\s，。；,.\n（）\(\)]{4,50}?(?:公司|企业|集团|中心|院|所|社))/,
+    // 乙方：XXX有限公司（优先匹配甲方）
+    /乙方[^：:\n]*[：:]\s*([^\s，。；,.\n（）\(\)]{4,50}?(?:公司|企业|集团|中心|院|所|社))/,
     // 与XXX有限公司签订
-    /与\s*([^\s，。；,.\n]{4,50}?(?:公司|企业|集团))\s*签订/,
-    // 直接匹配公司名称（XX有限公司）
-    /([^\s，。；,.\n]{4,50}?(?:有限公司|股份有限公司|有限责任公司))/,
+    /与\s*([^\s，。；,.\n（）\(\)]{4,50}?(?:公司|企业|集团))\s*签订/,
+    // 直接匹配公司名称（XX有限公司）- 排除括号和前缀字符
+    /(?:^|[：:\s，（())])([^\s，。；,.\n（）\(\)甲方乙方]{4,50}?(?:有限公司|股份有限公司|有限责任公司))/,
   ];
 
   for (const pattern of patterns) {
@@ -145,9 +147,15 @@ export function extractCompanyNameFromContract(contractText: string): string | n
     if (match && match[1]) {
       // 清理公司名称
       let companyName = match[1].trim();
-      // 移除可能的标点符号
-      companyName = companyName.replace(/[，。；,.\s]+$/g, '');
+      // 移除可能的标点符号和前缀
+      companyName = companyName.replace(/^[：:\s，（())]+/, ''); // 移除开头标点
+      companyName = companyName.replace(/[，。；,.\s（）()（）]+$/g, ''); // 移除结尾标点
+      // 确保公司名称不包含"甲方"、"乙方"等前缀
+      if (companyName.includes('甲方') || companyName.includes('乙方')) {
+        continue; // 跳过，尝试下一个正则
+      }
       if (companyName.length >= 4) {
+        console.log(`[QCC Service] 提取到公司名称: ${companyName}`);
         return companyName;
       }
     }
