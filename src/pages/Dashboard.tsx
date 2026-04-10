@@ -63,16 +63,13 @@ export default function Dashboard() {
   return (
     <div className="mx-auto max-w-6xl">
       <header className="mb-12">
-        <motion.h2
+        <motion.p
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="mb-2 text-3xl font-bold text-slate-900"
+          className="text-lg text-slate-500"
         >
-          {t('dashboard.welcome')}
-        </motion.h2>
-        <p className="text-lg text-slate-500">
-          Lawbor 为你提供全方位的职场支持，点击下方模块开始探索。
-        </p>
+          {language === 'zh' ? 'Lawbor 为你提供全方位的职场支持，点击下方模块开始探索。' : 'Lawbor provides comprehensive workplace support. Click on the modules below to start exploring.'}
+        </motion.p>
       </header>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

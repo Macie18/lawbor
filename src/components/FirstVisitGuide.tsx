@@ -58,10 +58,6 @@ export default function FirstVisitGuide() {
               <Sparkles className="h-6 w-6" />
             </div>
 
-            <h3 className="mb-2 text-lg font-bold text-slate-900">
-              {language === 'zh' ? '👋 欢迎使用 Lawbor!' : '👋 Welcome to Lawbor!'}
-            </h3>
-
             <p className="mb-4 text-sm leading-relaxed text-slate-600">
               {language === 'zh'
                 ? '右下角的蓝色按钮是我们的AI法律助手,随时为你解答劳动法律问题。点击知识卡片也可以直接咨询相关话题!'

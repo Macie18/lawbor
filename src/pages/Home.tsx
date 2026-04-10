@@ -153,16 +153,6 @@ export default function Home() {
           style={{ opacity, scale }}
           className="text-center max-w-4xl"
         >
-          {/* 副标题1 - 灰色小号字体 */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="mb-6 text-slate-500 text-xl"
-          >
-            欢迎使用 Lawbor · 你的全天候AI法律锦囊
-          </motion.p>
-
           {/* 主标题 - 黑色大号粗体 */}
           <motion.h1
             initial={{ opacity: 0, y: 20 }}

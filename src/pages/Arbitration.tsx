@@ -233,6 +233,25 @@ export default function Arbitration() {
             {/* 下载按钮 */}
             <div className="space-y-3">
               <button
+                onClick={() => {
+                  if (!selectedReason) return;
+                  // 根据仲裁事由下载对应模板
+                  const templateMap: Record<string, string> = {
+                    unpaid_wages: 'template_salary.docx',
+                    unpaid_overtime: 'template_overtime.docx',
+                    illegal_dismissal: 'template_compensation.docx',
+                    no_contract: 'template_relation.docx',
+                    social_security: 'template_social_security.docx',
+                    work_injury: 'template_injury.docx',
+                    severance: 'template_compensation.docx',
+                    other: 'template_general.docx',
+                  };
+                  const templateFile = templateMap[selectedReason] || 'template_general.docx';
+                  const link = document.createElement('a');
+                  link.href = `/templates/${templateFile}`;
+                  link.download = templateFile;
+                  link.click();
+                }}
                 disabled={!selectedReason}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 py-4 text-base font-bold text-white transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -241,6 +260,12 @@ export default function Arbitration() {
               </button>
               
               <button
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = '/templates/template_general.docx';
+                  link.download = 'template_general.docx';
+                  link.click();
+                }}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-base font-bold text-slate-700 transition-all hover:bg-slate-50"
               >
                 <FileText className="h-5 w-5" />
