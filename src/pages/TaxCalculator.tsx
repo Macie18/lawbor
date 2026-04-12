@@ -33,6 +33,9 @@ import {
   reverseGrossFromNet, 
   calculateSocialInsurance,
   checkBonusTrap,
+  calculateMonthlyDeduction,
+  calculateAnnualDeduction,
+  calculateAnnualTax,
   SpecialDeduction,
   MonthlyTaxResult,
   BonusTaxResult,
@@ -57,16 +60,18 @@ export default function TaxCalculator() {
   const [selectedCity, setSelectedCity] = useState<string>('beijing');
   const [customFundRate, setCustomFundRate] = useState<number>(12);
   
-  // Special Deductions State
+  // Special Deductions State - 完整的专项扣除项
   const [deductions, setDeductions] = useState<SpecialDeduction>({
-    childrenEducation: 0,
-    infantCare: 0,
-    continuingEducation: 0,
-    seriousIllness: 0,
-    housingLoan: 0,
-    housingRent: 0,
-    elderlySupport: 0,
-    elderlyType: 'none'
+    childrenEducation: 0,        // 子女教育（2000元/孩/月）
+    infantCare: 0,               // 3岁以下婴幼儿照护（2000元/孩/月）
+    continuingEducationType: 'none',  // 继续教育类型
+    continuingEducationMonths: 0,     // 学历继续教育月数
+    seriousIllness: 0,           // 大病医疗年度扣除
+    housingLoanEnabled: false,    // 是否有住房贷款
+    housingLoanMonths: 0,        // 房贷月数
+    housingRent: 0,              // 住房租金
+    elderlyType: 'none',         // 赡养老人类型
+    elderlyShareAmount: 1500,    // 非独生子女分摊金额
   });
 
   // PDF导出状态
@@ -96,12 +101,18 @@ export default function TaxCalculator() {
     return calculateSocialInsurance(salary, selectedCity, customFundRate);
   }, [salary, selectedCity, customFundRate]);
 
+  // 年度计算结果（每月明细）
+  const annualResults = useMemo(() => {
+    const social = calculateSocialInsurance(salary, selectedCity, customFundRate);
+    return calculateAnnualTax(salary, social.totalPersonal, deductions);
+  }, [salary, selectedCity, customFundRate, deductions]);
+
   const chartData = useMemo(() => {
     return [
       { name: t('tax.result.netIncome'), value: monthlyResult.netIncome, color: '#3b82f6' },
       { name: t('tax.result.socialPersonal'), value: monthlyResult.socialInsurance, color: '#10b981' },
       { name: t('tax.result.monthlyTax'), value: monthlyResult.monthlyTax, color: '#ef4444' },
-      { name: t('tax.deduction.elderly'), value: monthlyResult.specialDeduction, color: '#f59e0b' },
+      { name: t('tax.deductions'), value: monthlyResult.specialDeduction, color: '#f59e0b' },
     ].filter(item => item.value > 0);
   }, [monthlyResult, t]);
 
@@ -157,6 +168,7 @@ export default function TaxCalculator() {
         bonusResults,
         reverseResult,
         socialResult,
+        annualResults, // 添加年度明细
         language,
       };
       generateTaxReportPdf(reportData);
@@ -313,84 +325,222 @@ export default function TaxCalculator() {
                 </div>
               </div>
 
-              {/* Special Deductions */}
+              {/* Special Deductions - 专项附加扣除 */}
               {(activeTab === 'monthly' || activeTab === 'bonus' || activeTab === 'annual' || activeTab === 'reverse') && (
                 <div className="pt-4 border-t">
                   <h4 className="mb-4 text-sm font-bold text-slate-400 uppercase tracking-wider">{t('tax.deductions')}</h4>
                   <div className="space-y-4">
+                    {/* 子女教育 & 婴幼儿照护 */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="mb-2 block text-xs font-bold text-slate-600">{t('tax.deduction.children')}</label>
+                        <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.deduction.children')}</label>
+                        <p className="mb-2 text-[10px] text-slate-400">2000元/孩/月</p>
                         <input
                           type="number"
+                          min="0"
+                          max="10"
                           value={deductions.childrenEducation}
                           onChange={(e) => setDeductions(prev => ({ ...prev, childrenEducation: Number(e.target.value) }))}
                           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500"
                         />
                       </div>
                       <div>
-                        <label className="mb-2 block text-xs font-bold text-slate-600">{t('tax.deduction.infant')}</label>
+                        <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.deduction.infant')}</label>
+                        <p className="mb-2 text-[10px] text-slate-400">2000元/孩/月</p>
                         <input
                           type="number"
+                          min="0"
+                          max="10"
                           value={deductions.infantCare}
                           onChange={(e) => setDeductions(prev => ({ ...prev, infantCare: Number(e.target.value) }))}
                           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500"
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="edu"
-                          checked={!!deductions.continuingEducation}
-                          onChange={(e) => setDeductions(prev => ({ ...prev, continuingEducation: e.target.checked ? 1 : 0 }))}
-                          className="rounded border-slate-300 text-blue-600"
-                        />
-                        <label htmlFor="edu" className="text-xs font-bold text-slate-600">{t('tax.deduction.education')}</label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="loan"
-                          checked={!!deductions.housingLoan}
-                          onChange={(e) => setDeductions(prev => ({ ...prev, housingLoan: e.target.checked ? 1 : 0 }))}
-                          className="rounded border-slate-300 text-blue-600"
-                        />
-                        <label htmlFor="loan" className="text-xs font-bold text-slate-600">{t('tax.deduction.loan')}</label>
-                      </div>
-                    </div>
+                    
+                    {/* 继续教育 - 支持学历和职业资格 */}
                     <div>
-                      <label className="mb-2 block text-xs font-bold text-slate-600">{t('tax.deduction.rent')}</label>
+                      <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.deduction.continuingEducation')}</label>
                       <select
-                        value={deductions.housingRent}
-                        onChange={(e) => setDeductions(prev => ({ ...prev, housingRent: Number(e.target.value) }))}
+                        value={deductions.continuingEducationType}
+                        onChange={(e) => setDeductions(prev => ({ 
+                          ...prev, 
+                          continuingEducationType: e.target.value as 'none' | 'academic' | 'professional',
+                          continuingEducationMonths: e.target.value === 'academic' ? 12 : 0
+                        }))}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500"
                       >
-                        <option value="0">{t('tax.deduction.none')}</option>
-                        <option value="1500">1500 (Tier 1 City)</option>
-                        <option value="1100">1100 (Tier 2 City)</option>
-                        <option value="800">800 (Tier 3 City)</option>
+                        <option value="none">{t('tax.deduction.none')}</option>
+                        <option value="academic">{t('tax.deduction.academicEducation')} (400元/月)</option>
+                        <option value="professional">{t('tax.deduction.professionalEducation')} (3600元/年)</option>
                       </select>
+                      {deductions.continuingEducationType === 'academic' && (
+                        <div className="mt-2">
+                          <label className="mb-1 block text-[10px] text-slate-500">{t('tax.deduction.educationMonths')} (最长48月)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="48"
+                            value={deductions.continuingEducationMonths}
+                            onChange={(e) => setDeductions(prev => ({ 
+                              ...prev, 
+                              continuingEducationMonths: Math.min(Number(e.target.value), 48) 
+                            }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      )}
                     </div>
+                    
+                    {/* 大病医疗 - 年度扣除 */}
                     <div>
-                      <label className="mb-2 block text-xs font-bold text-slate-600">{t('tax.deduction.elderlyType')}</label>
+                      <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.deduction.seriousIllness')}</label>
+                      <p className="mb-2 text-[10px] text-slate-400">{t('tax.deduction.illnessHint')} (最高80000元/年)</p>
+                      <input
+                        type="number"
+                        min="0"
+                        max="80000"
+                        value={deductions.seriousIllness}
+                        onChange={(e) => setDeductions(prev => ({ 
+                          ...prev, 
+                          seriousIllness: Math.min(Number(e.target.value), 80000) 
+                        }))}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    
+                    {/* 住房贷款利息 & 住房租金（互斥） */}
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.deduction.housing')}</label>
+                      <p className="mb-2 text-[10px] text-amber-600">{t('tax.deduction.housingHint')}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDeductions(prev => ({ 
+                            ...prev, 
+                            housingLoanEnabled: true, 
+                            housingRent: 0 
+                          }))}
+                          className={cn(
+                            "rounded-xl border py-3 text-xs font-bold transition-all",
+                            deductions.housingLoanEnabled
+                              ? "border-blue-500 bg-blue-50 text-blue-600" 
+                              : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300"
+                          )}
+                        >
+                          {t('tax.deduction.loan')} (1000元/月)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeductions(prev => ({ 
+                            ...prev, 
+                            housingLoanEnabled: false, 
+housingRent: 1500 
+                          }))}
+                          className={cn(
+                            "rounded-xl border py-3 text-xs font-bold transition-all",
+                            !deductions.housingLoanEnabled && deductions.housingRent > 0
+                              ? "border-blue-500 bg-blue-50 text-blue-600" 
+                              : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300"
+                          )}
+                        >
+                          {t('tax.deduction.rent')}
+                        </button>
+                      </div>
+                      {/* 房贷月数 */}
+                      {deductions.housingLoanEnabled && (
+                        <div className="mt-2">
+                          <label className="mb-1 block text-[10px] text-slate-500">{t('tax.deduction.loanMonths')} (最长240月)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="240"
+                            value={deductions.housingLoanMonths}
+                            onChange={(e) => setDeductions(prev => ({ 
+                              ...prev, 
+                              housingLoanMonths: Math.min(Number(e.target.value), 240) 
+                            }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      )}
+                      {/* 房租金额 */}
+                      {!deductions.housingLoanEnabled && (
+                        <select
+                          value={deductions.housingRent}
+                          onChange={(e) => setDeductions(prev => ({ ...prev, housingRent: Number(e.target.value) }))}
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                        >
+                          <option value="0">{t('tax.deduction.none')}</option>
+                          <option value="1500">1500元 (直辖市/省会)</option>
+                          <option value="1100">1100元 (人口&gt;100万)</option>
+                          <option value="800">800元 (人口≤100万)</option>
+                        </select>
+                      )}
+                    </div>
+                    
+                    {/* 赡养老人 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.deduction.elderlySupport')}</label>
+                      <p className="mb-2 text-[10px] text-slate-400">{t('tax.deduction.elderlyHint')}</p>
                       <div className="flex gap-2">
-                        {(['none', 'only', 'non-only'] as const).map(type => (
+                        {[
+                          { value: 'none', label: t('tax.deduction.none'), amount: 0 },
+                          { value: 'only', label: t('tax.deduction.onlyChild'), amount: 3000 },
+                          { value: 'non-only', label: t('tax.deduction.nonOnlyChild'), amount: 1500 }
+                        ].map(({ value, label, amount }) => (
                           <button
-                            key={type}
-                            onClick={() => setDeductions(prev => ({ ...prev, elderlyType: type }))}
+                            key={value}
+                            type="button"
+                            onClick={() => setDeductions(prev => ({ 
+                              ...prev, 
+                              elderlyType: value as 'none' | 'only' | 'non-only',
+                              elderlyShareAmount: value === 'non-only' ? 1500 : 0
+                            }))}
                             className={cn(
                               "flex-1 rounded-xl border py-2 text-[10px] font-bold transition-all",
-                              deductions.elderlyType === type 
+                              deductions.elderlyType === value 
                                 ? "border-blue-500 bg-blue-50 text-blue-600" 
                                 : "border-slate-200 bg-slate-50 text-slate-500"
                             )}
                           >
-                            {t(`tax.deduction.${type === 'only' ? 'onlyChild' : type === 'non-only' ? 'nonOnlyChild' : 'none'}`)}
+                            {label}<br/>
+                            <span className="text-slate-400 font-normal">{amount > 0 ? `${amount}元/月` : ''}</span>
                           </button>
                         ))}
                       </div>
+                      {/* 非独生子女分摊金额 */}
+                      {deductions.elderlyType === 'non-only' && (
+                        <div className="mt-2">
+                          <label className="mb-1 block text-[10px] text-slate-500">{t('tax.deduction.elderlyShare')} (最高1500元/月)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="1500"
+                            step="100"
+                            value={deductions.elderlyShareAmount}
+                            onChange={(e) => setDeductions(prev => ({ 
+                              ...prev, 
+                              elderlyShareAmount: Math.min(Number(e.target.value), 1500) 
+                            }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* 扣除汇总显示 */}
+                    <div className="mt-4 p-3 rounded-xl bg-blue-50 border border-blue-100">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-medium text-slate-600">{t('tax.deduction.monthlyTotal')}</span>
+                        <span className="font-bold text-blue-600">¥{calculateMonthlyDeduction(deductions).toLocaleString()}</span>
+                      </div>
+                      {deductions.seriousIllness > 0 && (
+                        <div className="flex justify-between items-center text-xs mt-1 text-slate-500">
+                          <span>{t('tax.deduction.annualTotal')}</span>
+                          <span>¥{calculateAnnualDeduction(deductions).toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -461,6 +611,45 @@ export default function TaxCalculator() {
                           <Legend verticalAlign="bottom" height={36}/>
                         </PieChart>
                       </ResponsiveContainer>
+                    </div>
+
+                    {/* 每月明细列表 */}
+                    <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                      <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                        <h4 className="font-bold text-slate-700">{language === 'zh' ? '每月税额明细' : 'Monthly Tax Breakdown'}</h4>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <th className="px-4 py-2 text-left font-medium text-slate-600">{language === 'zh' ? '月份' : 'Month'}</th>
+                              <th className="px-4 py-2 text-right font-medium text-slate-600">{language === 'zh' ? '应税所得' : 'Taxable'}</th>
+                              <th className="px-4 py-2 text-right font-medium text-slate-600">{language === 'zh' ? '本月个税' : 'Tax'}</th>
+                              <th className="px-4 py-2 text-right font-medium text-slate-600">{language === 'zh' ? '累计个税' : 'Cumulative'}</th>
+                              <th className="px-4 py-2 text-right font-medium text-slate-600">{language === 'zh' ? '税后收入' : 'Net'}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {annualResults.map((result) => (
+                              <tr key={result.month} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                                <td className="px-4 py-2 font-medium text-slate-700">{result.month}{language === 'zh' ? '月' : ''}</td>
+                                <td className="px-4 py-2 text-right text-slate-600">¥{result.taxableIncome.toLocaleString()}</td>
+                                <td className="px-4 py-2 text-right font-medium text-rose-500">¥{result.monthlyTax.toLocaleString()}</td>
+                                <td className="px-4 py-2 text-right text-slate-600">¥{result.cumulativeTax.toLocaleString()}</td>
+                                <td className="px-4 py-2 text-right font-bold text-blue-600">¥{result.netIncome.toLocaleString()}</td>
+                              </tr>
+                            ))}
+                            {/* 合计行 */}
+                            <tr className="bg-blue-50 font-bold">
+                              <td className="px-4 py-3 text-slate-700">{language === 'zh' ? '年度合计' : 'Annual Total'}</td>
+                              <td className="px-4 py-3 text-right text-slate-600">-</td>
+                              <td className="px-4 py-3 text-right text-rose-500">¥{annualResults.reduce((sum, r) => sum + r.monthlyTax, 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 text-right text-slate-600">-</td>
+                              <td className="px-4 py-3 text-right text-blue-600">¥{annualResults.reduce((sum, r) => sum + r.netIncome, 0).toLocaleString()}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -574,6 +763,15 @@ export default function TaxCalculator() {
                       <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50">
                         <span className="text-sm font-bold text-slate-600">{t('tax.annual.social')}</span>
                         <span className="text-sm font-black text-slate-900">¥{(monthlyResult.socialInsurance * 12).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50">
+                        <span className="text-sm font-bold text-slate-600">{t('tax.deductions')}</span>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-slate-900">¥{calculateAnnualDeduction(deductions).toLocaleString()}</p>
+                          {deductions.seriousIllness > 0 && (
+                            <p className="text-[10px] text-slate-400">含大病医疗 {deductions.seriousIllness.toLocaleString()}元</p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50">
                         <span className="text-sm font-bold text-slate-600">{t('tax.annual.tax')}</span>

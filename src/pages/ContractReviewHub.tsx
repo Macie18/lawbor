@@ -162,7 +162,7 @@ export default function ContractReviewHub() {
             <Scale className="h-4 w-4" />
             <span>
               {language === 'zh'
-                ? '数据来源：企查查 · 法律依据：劳动法'
+                ? 'Lawbor用心托举每一位职场新人'
                 : 'Data: QCC · Legal Basis: Labor Law'}
             </span>
           </div>

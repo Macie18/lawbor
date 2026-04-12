@@ -132,13 +132,15 @@ export default function CompanyRiskPage() {
               <span className="font-medium text-slate-900">{companyInfo.establishDate}</span>
             </span>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Briefcase className="h-4 w-4 text-slate-400" />
-            <span className="text-slate-600">
-              {language === 'zh' ? '信用代码：' : 'Credit Code: '}
-              <span className="font-mono text-xs text-slate-900">{companyInfo.creditCode.slice(0, 10)}...</span>
-            </span>
-          </div>
+        </div>
+        
+        {/* ✅ 信用代码单独一行完整显示 */}
+        <div className="mt-3 flex items-center gap-2 text-sm">
+          <Briefcase className="h-4 w-4 text-slate-400 flex-shrink-0" />
+          <span className="text-slate-600">
+            {language === 'zh' ? '信用代码：' : 'Credit Code: '}
+          </span>
+          <span className="font-mono text-xs text-slate-900 break-all">{companyInfo.creditCode}</span>
         </div>
 
         {/* 经营范围 */}

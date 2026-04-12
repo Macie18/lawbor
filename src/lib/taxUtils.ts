@@ -1,13 +1,30 @@
 
 export interface SpecialDeduction {
-  childrenEducation: number;      // 子女教育（2000元/孩/月）
-  infantCare: number;             // 3岁以下婴幼儿照护（2000元/孩/月）
-  continuingEducation: number;    // 继续教育（400元/月）
-  seriousIllness: number;         // 大病医疗（年度）
-  housingLoan: number;            // 住房贷款利息（1000元/月）
-  housingRent: number;            // 住房租金（800-1500元/月）
-  elderlySupport: number;         // 赡养老人
+  // 子女教育（每个子女2000元/月，3岁以上至博士毕业）
+  childrenEducation: number;
+  
+  // 3岁以下婴幼儿照护（每个子女2000元/月）
+  infantCare: number;
+  
+  // 继续教育类型：学历/职业资格
+  continuingEducationType: 'none' | 'academic' | 'professional';
+  // 学历继续教育月数（最长48个月）
+  continuingEducationMonths: number;
+  
+  // 大病医疗年度扣除（最高80000元）
+  seriousIllness: number;
+  
+  // 住房贷款利息（1000元/月，最长240个月）
+  housingLoanEnabled: boolean;
+  housingLoanMonths: number;
+  
+  // 住房租金（800-1500元/月，与房贷互斥）
+  housingRent: number;
+  
+  // 赡养老人类型
   elderlyType: 'only' | 'non-only' | 'none';
+  // 非独生子女分摊金额（最高1500元/月）
+  elderlyShareAmount: number;
 }
 
 export interface MonthlyTaxResult {
@@ -54,21 +71,73 @@ export function getTaxInfo(taxable: number) {
   return { rate: 0.45, quickDed: 15160 };
 }
 
+/**
+ * 计算月度专项附加扣除总额
+ * 参照《个人所得税专项附加扣除暂行办法》
+ */
 export function calculateMonthlyDeduction(deductions: SpecialDeduction): number {
   let total = 0;
-  total += deductions.childrenEducation * 2000;
-  total += deductions.infantCare * 2000;
-  total += deductions.continuingEducation ? 400 : 0;
-  total += deductions.housingLoan ? 1000 : 0;
-  total += deductions.housingRent;
   
+  // 1. 子女教育：每个子女2000元/月（3岁以上至博士毕业）
+  total += deductions.childrenEducation * 2000;
+  
+  // 2. 3岁以下婴幼儿照护：每个子女2000元/月
+  total += deductions.infantCare * 2000;
+  
+  // 3. 继续教育
+  if (deductions.continuingEducationType === 'academic') {
+    // 学历继续教育：400元/月，最长48个月
+    const months = Math.min(deductions.continuingEducationMonths || 1, 48);
+    total += 400; // 每月固定400元，在有效期内
+  } else if (deductions.continuingEducationType === 'professional') {
+    // 职业资格继续教育：3600元/年（取得证书当年）
+    // 折算月度：3600/12 = 300元/月
+    total += 300;
+  }
+  
+  // 4. 大病医疗：年度扣除，月度计算时不计入
+  // （在年度汇算时扣除，最高80000元）
+  
+  // 5. 住房贷款利息：1000元/月，最长240个月
+  // 与住房租金互斥，只能选择其一
+  if (deductions.housingLoanEnabled && deductions.housingRent === 0) {
+    total += 1000;
+  }
+  
+  // 6. 住房租金：800-1500元/月（与房贷互斥）
+  // 直辖市/省会/计划单列市：1500元
+  // 市辖区人口>100万：1100元
+  // 市辖区人口≤100万：800元
+  if (!deductions.housingLoanEnabled && deductions.housingRent > 0) {
+    total += deductions.housingRent;
+  }
+  
+  // 7. 赡养老人
+  // 独生子女：3000元/月
+  // 非独生子女：最高1500元/月（兄弟姐妹分摊3000元）
   if (deductions.elderlyType === 'only') {
     total += 3000;
   } else if (deductions.elderlyType === 'non-only') {
-    total += 1500;
+    // 非独生子女分摊金额，最高1500元
+    total += Math.min(deductions.elderlyShareAmount || 1500, 1500);
   }
   
   return total;
+}
+
+/**
+ * 计算年度专项附加扣除（包含大病医疗）
+ */
+export function calculateAnnualDeduction(deductions: SpecialDeduction): number {
+  const monthlyDeduction = calculateMonthlyDeduction(deductions);
+  let annualTotal = monthlyDeduction * 12;
+  
+  // 加上大病医疗年度扣除（最高80000元）
+  if (deductions.seriousIllness > 0) {
+    annualTotal += Math.min(deductions.seriousIllness, 80000);
+  }
+  
+  return annualTotal;
 }
 
 export function calculateMonthlyTax(
@@ -166,11 +235,13 @@ export function calculateBonusCombined(
   const annualResults = calculateAnnualTax(monthlySalary, socialInsurance, specialDeductions);
   const taxWithoutBonus = annualResults.length > 0 ? annualResults[annualResults.length - 1].cumulativeTax : 0;
   
+  // 使用年度扣除计算（含大病医疗）
+  const annualDeduction = calculateAnnualDeduction(specialDeductions);
   const monthlyDeduction = calculateMonthlyDeduction(specialDeductions);
   const annualIncome = monthlySalary * 12 + bonus;
   const annualSocial = socialInsurance * 12;
-  const annualDeduction = monthlyDeduction * 12;
   
+  // 年度应税所得 = 年收入 - 年社保 - 年专项附加扣除 - 60000起征点
   let annualTaxable = annualIncome - annualSocial - annualDeduction - THRESHOLD * 12;
   annualTaxable = Math.max(0, annualTaxable);
   

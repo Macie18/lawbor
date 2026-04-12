@@ -56,6 +56,9 @@ export interface TaxReportData {
   reverseResult: number;
   socialResult: SocialResult;
   
+  // 年度明细（每月）
+  annualResults?: MonthlyTaxResult[];
+  
   // 语言
   language: 'zh' | 'en';
 }
@@ -314,6 +317,44 @@ export function generateTaxReportPdf(data: TaxReportData): void {
             <td style="padding: 10px 15px; text-align: right; font-weight: bold; color: #3b82f6; font-size: 16px;">${formatMoney(annualNet)}</td>
           </tr>
         </table>
+        
+        <!-- 每月明细表格 -->
+        ${data.annualResults && data.annualResults.length > 0 ? `
+        <div style="margin-top: 15px;">
+          <div style="padding: 10px 15px; background: #f8fafc; font-weight: bold; color: #334155; border-bottom: 1px solid #e2e8f0;">
+            ${isZh ? '每月税额明细' : 'Monthly Tax Breakdown'}
+          </div>
+          <table style="width: 100%; border-collapse: collapse; background: white; font-size: 11px;">
+            <thead>
+              <tr style="background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 6px 8px; text-align: center; font-weight: 600; color: #334155;">${isZh ? '月份' : 'Month'}</th>
+                <th style="padding: 6px 8px; text-align: right; font-weight: 600; color: #334155;">${isZh ? '应税所得' : 'Taxable'}</th>
+                <th style="padding: 6px 8px; text-align: right; font-weight: 600; color: #334155;">${isZh ? '本月个税' : 'Tax'}</th>
+                <th style="padding: 6px 8px; text-align: right; font-weight: 600; color: #334155;">${isZh ? '累计个税' : 'Cumulative'}</th>
+                <th style="padding: 6px 8px; text-align: right; font-weight: 600; color: #334155;">${isZh ? '税后收入' : 'Net'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.annualResults.map((r, i) => `
+                <tr style="border-bottom: 1px solid #f1f5f9; ${i % 2 === 1 ? 'background: #fafafa;' : ''}">
+                  <td style="padding: 5px 8px; text-align: center; font-weight: 500;">${r.month}</td>
+                  <td style="padding: 5px 8px; text-align: right; color: #475569;">${formatMoney(r.taxableIncome)}</td>
+                  <td style="padding: 5px 8px; text-align: right; color: #dc2626; font-weight: 500;">${formatMoney(r.monthlyTax)}</td>
+                  <td style="padding: 5px 8px; text-align: right; color: #475569;">${formatMoney(r.cumulativeTax)}</td>
+                  <td style="padding: 5px 8px; text-align: right; color: #2563eb; font-weight: 600;">${formatMoney(r.netIncome)}</td>
+                </tr>
+              `).join('')}
+              <tr style="background: #eff6ff; font-weight: bold;">
+                <td style="padding: 6px 8px; text-align: center; color: #1e40af;">${isZh ? '合计' : 'Total'}</td>
+                <td style="padding: 6px 8px; text-align: right; color: #475569;">-</td>
+                <td style="padding: 6px 8px; text-align: right; color: #dc2626;">${formatMoney(data.annualResults.reduce((s, r) => s + r.monthlyTax, 0))}</td>
+                <td style="padding: 6px 8px; text-align: right; color: #475569;">-</td>
+                <td style="padding: 6px 8px; text-align: right; color: #2563eb;">${formatMoney(data.annualResults.reduce((s, r) => s + r.netIncome, 0))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
       </div>
       
       <!-- 免责声明 -->

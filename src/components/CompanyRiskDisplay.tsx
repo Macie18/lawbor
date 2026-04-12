@@ -17,6 +17,7 @@ import {
   Calendar,
   CreditCard,
   AlertCircle,
+  Briefcase,
 } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
 import type { CompanyRiskReport } from '../services/qccService';
@@ -90,6 +91,17 @@ export default function CompanyRiskDisplay({ report, compact = false }: CompanyR
           <p className="text-xs text-slate-500">{companyInfo.businessStatus}</p>
         </div>
       </div>
+      
+      {/* ✅ 添加信用代码显示 */}
+      {companyInfo.creditCode && (
+        <div className="flex items-center gap-2 text-xs">
+          <Briefcase className="h-3 w-3 text-slate-400 flex-shrink-0" />
+          <span className="text-slate-500">
+            {language === 'zh' ? '信用代码：' : 'Credit Code: '}
+          </span>
+          <span className="font-mono text-slate-900 break-all">{companyInfo.creditCode}</span>
+        </div>
+      )}
 
       {/* 风险等级 */}
       <div className={`flex items-center gap-2 p-3 rounded-lg ${config.color}`}>
