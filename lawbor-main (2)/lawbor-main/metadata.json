@@ -1,0 +1,9 @@
+{
+  "name": "Lawbor: 托起你的职场第一步",
+  "description": "Lawbor 是专为即将毕业的大学生打造的一站式职场法律与求职助手，提供薪资测算、合同审查、1v1 模拟面试等核心功能，助你从容开启职场生涯。",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

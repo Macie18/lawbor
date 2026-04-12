@@ -645,8 +645,7 @@ const translations = {
     'interview.setup.modePractice': 'Free Practice',
     'interview.setup.offlineTitle': 'Offline',
     'interview.setup.offlineDesc': 'Speech recognition requires a network connection. Check your network and try again.',
-    'interview.setup.networkNoteTitle': 'Network note:',
-    'interview.setup.networkNoteDesc': 'Speech recognition connects to Google services. If you see "network" error, check your connection or use a VPN.',
+    
     'interview.report.download': 'Download Report',
     // Resume Clinic
     'resume.title': 'Resume Clinic',

@@ -14,15 +14,53 @@
     ],
     "194d5c01ac5d49bab1665115ef327a3f": [
       {
+        "expertId": "ContentCreator",
+        "name": "Kai",
+        "profession": "内容创作专家",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/03-Marketing/ContentCreator/ContentCreator.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/03-Marketing/ContentCreator/ContentCreator_zh.md",
+        "usedAt": 1775811693123,
+        "industryId": "all"
+      },
+      {
         "expertId": "SeniorDeveloper",
         "name": "Will",
         "profession": "高级开发工程师",
         "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/SeniorDeveloper/SeniorDeveloper.png",
         "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/SeniorDeveloper/SeniorDeveloper_zh.md",
-        "usedAt": 1775798990066,
+        "usedAt": 1775804875383,
         "industryId": "02-Engineering"
+      }
+    ],
+    "f8f248893aa541d287ffdf9c8fdf19b7": [
+      {
+        "expertId": "SeniorDeveloper",
+        "name": "Will",
+        "profession": "高级开发工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/SeniorDeveloper/SeniorDeveloper.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/SeniorDeveloper/SeniorDeveloper_zh.md",
+        "usedAt": 1776002832768,
+        "industryId": "02-Engineering"
+      },
+      {
+        "expertId": "SeniorProjectManager",
+        "name": "Dylan",
+        "profession": "高级项目经理",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/07-ProjectManagement/SeniorProjectManager/SeniorProjectManager.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/07-ProjectManagement/SeniorProjectManager/SeniorProjectManager_zh.md",
+        "usedAt": 1776002490886,
+        "industryId": "all"
+      },
+      {
+        "expertId": "ContentCreator",
+        "name": "Kai",
+        "profession": "内容创作专家",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/03-Marketing/ContentCreator/ContentCreator.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/03-Marketing/ContentCreator/ContentCreator_zh.md",
+        "usedAt": 1776000439095,
+        "industryId": "all"
       }
     ]
   },
-  "lastUpdated": 1775800085859
+  "lastUpdated": 1776003732295
 }

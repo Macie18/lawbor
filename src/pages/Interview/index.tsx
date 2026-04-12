@@ -583,20 +583,7 @@ export default function Interview() {
             </motion.div>
           )}
           
-          {/* 📝 中国大陆用户提示 - Google 服务可能被墙 */}
-          {isOnline && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 rounded-2xl bg-amber-50 border border-amber-200 p-4"
-            >
-              <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
-              <div className="text-sm">
-                <span className="font-semibold text-amber-700">{t('interview.setup.networkNoteTitle')}</span>
-                <span className="text-amber-600 ml-1">{t('interview.setup.networkNoteDesc')}</span>
-              </div>
-            </motion.div>
-          )}
+          
           {/* 简历诊所区域 */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}

@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lawbor - 劳动者权益守护平台 | 项目展示</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    :root {
+      --primary: #065A82;
+      --secondary: #1C7293;
+      --accent: #02C39A;
+      --dark: #21295C;
+      --light: #F2F2F2;
+      --text: #2C3E50;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+    }
+    
+    /* 导航栏 */
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--dark);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+    }
+    
+    .navbar .logo {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .navbar .logo span {
+      color: var(--accent);
+    }
+    
+    .navbar nav a {
+      color: white;
+      text-decoration: none;
+      margin-left: 2rem;
+      transition: color 0.3s;
+    }
+    
+    .navbar nav a:hover {
+      color: var(--accent);
+    }
+    
+    /* 主容器 */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+    
+    /* Hero区域 */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--dark) 0%, var(--primary) 100%);
+      padding-top: 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(2,195,154,0.1) 0%, transparent 70%);
+      animation: rotate 30s linear infinite;
+    }
+    
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    .hero-content {
+      text-align: center;
+      color: white;
+      z-index: 1;
+    }
+    
+    .hero-logo {
+      font-size: 5rem;
+      margin-bottom: 1rem;
+    }
+    
+    .hero h1 {
+      font-size: 4rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    
+    .hero h2 {
+      font-size: 1.8rem;
+      color: var(--accent);
+      margin-bottom: 1.5rem;
+      font-weight: normal;
+    }
+    
+    .hero p {
+      font-size: 1.2rem;
+      opacity: 0.9;
+      max-width: 600px;
+      margin: 0 auto 2rem;
+    }
+    
+    .btn-primary {
+      display: inline-block;
+      background: var(--accent);
+      color: white;
+      padding: 1rem 2.5rem;
+      border-radius: 50px;
+      text-decoration: none;
+      font-weight: bold;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(2,195,154,0.4);
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 25px rgba(2,195,154,0.6);
+    }
+    
+    /* 章节标题 */
+    .section {
+      padding: 6rem 0;
+    }
+    
+    .section-title {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    
+    .section-title h2 {
+      font-size: 2.5rem;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+    
+    .section-title p {
+      color: #666;
+      font-size: 1.1rem;
+    }
+    
+    /* 品牌故事 */
+    .brand-story {
+      background: white;
+      padding: 4rem;
+      border-radius: 30px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      margin: 2rem 0;
+    }
+    
+    .brand-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+    
+    .brand-card {
+      background: linear-gradient(135deg, var(--light) 0%, #e8f4f8 100%);
+      padding: 2rem;
+      border-radius: 20px;
+      border-left: 4px solid var(--accent);
+    }
+    
+    .brand-card h4 {
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+      font-size: 1.3rem;
+    }
+    
+    .brand-card p {
+      color: #666;
+      line-height: 1.8;
+    }
+    
+    /* 功能卡片 */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+    }
+    
+    .feature-card {
+      background: white;
+      padding: 2rem;
+      border-radius: 20px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+      transition: all 0.3s;
+      border-top: 4px solid transparent;
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+      border-top-color: var(--accent);
+    }
+    
+    .feature-icon {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+    
+    .feature-card h3 {
+      color: var(--text);
+      margin-bottom: 0.5rem;
+      font-size: 1.3rem;
+    }
+    
+    .feature-card p {
+      color: #666;
+      font-size: 0.95rem;
+    }
+    
+    /* 技术栈 */
+    .tech-stack {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+    }
+    
+    .tech-category {
+      background: white;
+      padding: 2rem;
+      border-radius: 20px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    }
+    
+    .tech-category h3 {
+      color: var(--secondary);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--accent);
+    }
+    
+    .tech-list {
+      list-style: none;
+    }
+    
+    .tech-list li {
+      padding: 0.5rem 0;
+      color: #555;
+      display: flex;
+      align-items: center;
+    }
+    
+    .tech-list li::before {
+      content: '▸';
+      color: var(--accent);
+      margin-right: 0.5rem;
+    }
+    
+    /* 项目预览 */
+    .preview-section {
+      background: var(--dark);
+      padding: 6rem 0;
+    }
+    
+    .preview-section .section-title h2 {
+      color: white;
+    }
+    
+    .preview-section .section-title p {
+      color: rgba(255,255,255,0.7);
+    }
+    
+    .preview-container {
+      background: white;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    .preview-header {
+      background: #f1f3f5;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .preview-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    
+    .preview-dot:nth-child(1) { background: #ff5f57; }
+    .preview-dot:nth-child(2) { background: #febc2e; }
+    .preview-dot:nth-child(3) { background: #28c840; }
+    
+    .preview-url {
+      margin-left: 1rem;
+      background: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      color: #666;
+      flex: 1;
+    }
+    
+    .preview-frame {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    
+    /* 亮点展示 */
+    .highlights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+    }
+    
+    .highlight-card {
+      background: linear-gradient(135deg, white 0%, var(--light) 100%);
+      padding: 2.5rem;
+      border-radius: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .highlight-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 5px;
+      height: 100%;
+      background: linear-gradient(180deg, var(--accent) 0%, var(--secondary) 100%);
+    }
+    
+    .highlight-card h3 {
+      color: var(--primary);
+      margin-bottom: 1rem;
+      font-size: 1.4rem;
+    }
+    
+    .highlight-card p {
+      color: #555;
+      line-height: 1.8;
+    }
+    
+    /* 页脚 */
+    .footer {
+      background: var(--dark);
+      color: white;
+      text-align: center;
+      padding: 3rem 2rem;
+    }
+    
+    .footer .logo {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+    }
+    
+    .footer .logo span {
+      color: var(--accent);
+    }
+    
+    .footer p {
+      opacity: 0.7;
+      margin-bottom: 1rem;
+    }
+    
+    .footer .tagline {
+      color: var(--accent);
+      font-size: 1.1rem;
+      font-style: italic;
+    }
+    
+    /* 下载按钮 */
+    .download-section {
+      background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+      padding: 4rem;
+      border-radius: 30px;
+      text-align: center;
+      margin: 4rem 0;
+      color: white;
+    }
+    
+    .download-section h3 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    
+    .download-section p {
+      opacity: 0.9;
+      margin-bottom: 2rem;
+    }
+    
+    .download-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .download-btn {
+      background: white;
+      color: var(--primary);
+      padding: 1rem 2rem;
+      border-radius: 50px;
+      text-decoration: none;
+      font-weight: bold;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.3s;
+    }
+    
+    .download-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 2.5rem;
+      }
+      
+      .hero h2 {
+        font-size: 1.3rem;
+      }
+      
+      .section {
+        padding: 4rem 0;
+      }
+      
+      .brand-story {
+        padding: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 导航栏 -->
+  <div class="navbar">
+    <div class="logo">
+      🤝 <span>Lawbor</span> 劳友记
+    </div>
+    <nav>
+      <a href="#brand">品牌故事</a>
+      <a href="#features">核心功能</a>
+      <a href="#tech">技术架构</a>
+      <a href="#preview">项目预览</a>
+      <a href="#download">下载文档</a>
+    </nav>
+  </div>
+
+  <!-- Hero区域 -->
+  <div class="hero" id="home">
+    <div class="hero-content">
+      <div class="hero-logo">🤝</div>
+      <h1>Lawbor</h1>
+      <h2>劳动者权益守护平台</h2>
+      <p>重塑新锐劳动者权益，让每一位职场新人都能懂法、用法、维权</p>
+      <p style="font-size: 1rem; opacity: 0.8; margin-top: 1rem;">
+        We 劳友记，用手托举每一位职场新人
+      </p>
+      <a href="#preview" class="btn-primary">查看项目演示 →</a>
+    </div>
+  </div>
+
+  <!-- 品牌故事 -->
+  <div class="section" id="brand">
+    <div class="container">
+      <div class="section-title">
+        <h2>品牌故事：Lawbor 命名巧思</h2>
+        <p>三重巧思，传递温暖与专业</p>
+      </div>
+      
+      <div class="brand-story">
+        <div class="brand-grid">
+          <div class="brand-card">
+            <h4>01 Labor Law 化用</h4>
+            <p>Lawbor = Labor（劳动）+ Law（法律），巧妙融合劳动法核心，传递专业与温暖。</p>
+          </div>
+          <div class="brand-card">
+            <h4>02 好伙计的谐音</h4>
+            <p>Lawbor 听起来像"老伙计"，象征着我们是值得信赖的职场伙伴，一路陪伴成长。</p>
+          </div>
+          <div class="brand-card">
+            <h4>03 双手托举的Logo</h4>
+            <p>Logo中的"w"设计成双手样式，象征"劳友记"——我们一起用手托举每一位即将步入职场的小伙伴。</p>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 2rem; padding: 2rem; background: linear-gradient(135deg, #e8f4f8 0%, #f0f8ff 100%); border-radius: 15px;">
+          <p style="font-size: 1.2rem; color: var(--accent); font-weight: bold;">
+            💡 品牌理念：We 劳友记，用手托举每一位职场新人，让懂法、用法、维权不再困难
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 核心功能 -->
+  <div class="section" id="features" style="background: var(--light);">
+    <div class="container">
+      <div class="section-title">
+        <h2>核心功能模块</h2>
+        <p>六大模块，全方位守护职场新人</p>
+      </div>
+      
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">📄</div>
+          <h3>合同天眼</h3>
+          <p>AI逐字扫描合同，识别试用期、薪资、社保、违约金等陷阱条款，提供风险评估。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">👁️</div>
+          <h3>职场法眼</h3>
+          <p>劳动法知识卡片库，涵盖试用期、加班、离职、赔偿等常见问题，一查便知。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📡</div>
+          <h3>补贴雷达</h3>
+          <p>一键匹配城市政策，租房补贴、人才补贴、就业扶持等应得权益不错过。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚖️</div>
+          <h3>维权冲锋队</h3>
+          <p>劳动仲裁全程陪跑，帮忙写文书、算赔偿、理证据、走流程。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💰</div>
+          <h3>薪资清算师</h3>
+          <p>税前税后、加班费、补偿金、个税计算，工资明明白白。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3>AI法律搭子</h3>
+          <p>24小时在线法律问答助手，随时随地解答职场法律问题。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 技术架构 -->
+  <div class="section" id="tech">
+    <div class="container">
+      <div class="section-title">
+        <h2>技术架构</h2>
+        <p>现代化技术栈，保障稳定与高效</p>
+      </div>
+      
+      <div class="tech-stack">
+        <div class="tech-category">
+          <h3>前端技术栈</h3>
+          <ul class="tech-list">
+            <li>React 19 + TypeScript</li>
+            <li>Vite 构建工具</li>
+            <li>Tailwind CSS 4</li>
+            <li>Ant Design 6</li>
+            <li>Framer Motion</li>
+            <li>React Router DOM 7</li>
+          </ul>
+        </div>
+        <div class="tech-category">
+          <h3>后端服务</h3>
+          <ul class="tech-list">
+            <li>Express.js 服务器</li>
+            <li>WebSocket 实时通信</li>
+            <li>Supabase 用户认证</li>
+            <li>PostgreSQL 数据库</li>
+            <li>Row Level Security</li>
+            <li>Vercel Serverless</li>
+          </ul>
+        </div>
+        <div class="tech-category">
+          <h3>AI 服务层</h3>
+          <ul class="tech-list">
+            <li>DeepSeek API - 对话/审查</li>
+            <li>Gemini API - 简历分析</li>
+            <li>企查查 MCP - 企业风险</li>
+            <li>Web Speech API - 语音识别</li>
+          </ul>
+        </div>
+        <div class="tech-category">
+          <h3>部署架构</h3>
+          <ul class="tech-list">
+            <li>Vercel 边缘网络</li>
+            <li>全球 CDN 加速</li>
+            <li>自动 HTTPS 证书</li>
+            <li>CI/CD 自动部署</li>
+            <li>实时日志监控</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 项目预览 -->
+  <div class="preview-section" id="preview">
+    <div class="container">
+      <div class="section-title">
+        <h2>项目预览</h2>
+        <p>实时查看 Lawbor 运行效果</p>
+      </div>
+      
+      <div class="preview-container">
+        <div class="preview-header">
+          <div class="preview-dot"></div>
+          <div class="preview-dot"></div>
+          <div class="preview-dot"></div>
+          <div class="preview-url">https://lawbor.com</div>
+        </div>
+        <iframe class="preview-frame" src="http://localhost:3000" title="Lawbor Preview"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- 技术亮点 -->
+  <div class="section">
+    <div class="container">
+      <div class="section-title">
+        <h2>技术亮点</h2>
+        <p>创新技术，打造卓越体验</p>
+      </div>
+      
+      <div class="highlights-grid">
+        <div class="highlight-card">
+          <h3>智能合同审查</h3>
+          <p>PDF/DOCX 文件解析，AI逐条风险识别，企查查企业风险数据集成，正则表达式智能提取企业名称。</p>
+        </div>
+        <div class="highlight-card">
+          <h3>AI面试模拟</h3>
+          <p>Web Speech API 语音识别，动态性格调节（温度值0-100），Gemini 简历分析，自动生成面试报告。</p>
+        </div>
+        <div class="highlight-card">
+          <h3>企查查集成</h3>
+          <p>MCP 协议对接，劳动纠纷记录、司法风险、经营异常全覆盖，中文字段自动映射。</p>
+        </div>
+        <div class="highlight-card">
+          <h3>数据安全</h3>
+          <p>Supabase RLS 行级权限控制，用户数据完全隔离，HTTPS 全站加密，环境变量保护敏感信息。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 下载文档 -->
+  <div class="section" id="download">
+    <div class="container">
+      <div class="download-section">
+        <h3>📥 下载项目文档</h3>
+        <p>获取完整的PPT演示和Word技术文档</p>
+        <div class="download-buttons">
+          <a href="./Lawbor-Project-Presentation.pptx" class="download-btn" download>
+            📊 下载 PPT 演示
+          </a>
+          <a href="./Lawbor-Technical-Document.docx" class="download-btn" download>
+            📝 下载 Word 文档
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 页脚 -->
+  <div class="footer">
+    <div class="logo">🤝 <span>Lawbor</span></div>
+    <p>劳动者权益守护平台</p>
+    <p class="tagline">劳友记 · 用手托举每一位职场新人</p>
+    <p style="margin-top: 2rem; opacity: 0.5; font-size: 0.9rem;">
+      © 2026 Lawbor · All Rights Reserved
+    </p>
+  </div>
+
+  <script>
+    // 平滑滚动
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      });
+    });
+    
+    // 导航栏滚动效果
+    window.addEventListener('scroll', () => {
+      const navbar = document.querySelector('.navbar');
+      if (window.scrollY > 100) {
+        navbar.style.background = 'rgba(33, 41, 92, 0.95)';
+        navbar.style.backdropFilter = 'blur(10px)';
+      } else {
+        navbar.style.background = 'var(--dark)';
+        navbar.style.backdropFilter = 'none';
+      }
+    });
+  </script>
+</body>
+</html>

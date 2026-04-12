@@ -1,0 +1,141 @@
+2026-04-10 08:40:35.145 [info] [QCC API] 正在查询企业: 甲方（用人单位）：万得信息技术股份有限公司, 模式: MCP
+2026-04-10 08:40:35.145 [info] [QCC MCP] 调用 company/get_company_registration_info {
+  "jsonrpc": "2.0",
+  "id": "1775810435145-3z7qkg6x8",
+  "method": "tools/call",
+  "params": {
+    "name": "get_company_registration_info",
+    "arguments": {
+      "searchKey": "甲方（用人单位）：万得信息技术股份有限公司"
+    }
+  }
+}
+2026-04-10 08:40:35.970 [info] [QCC MCP] 原始响应长度: 199 字符
+2026-04-10 08:40:35.970 [info] [QCC MCP] 原始响应内容: event: message
+data: {"result":{"content":[{"type":"text","text":"{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"}],"_extra":{"settlement":"free_no_match"}},"jsonrpc":"2.0","id":"1775810435145-3z7qkg6x8"}
+2026-04-10 08:40:35.970 [info] [QCC MCP] 解析到 1 个结果，返回最后一个: {
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"
+    }
+  ],
+  "_extra": {
+    "settlement": "free_no_match"
+  }
+}
+2026-04-10 08:40:35.970 [info] [QCC MCP] 调用 risk/get_case_filing_info {
+  "jsonrpc": "2.0",
+  "id": "1775810435969-gu34y7tsg",
+  "method": "tools/call",
+  "params": {
+    "name": "get_case_filing_info",
+    "arguments": {
+      "searchKey": "甲方（用人单位）：万得信息技术股份有限公司"
+    }
+  }
+}
+2026-04-10 08:40:35.971 [info] [QCC MCP] 调用 risk/get_judicial_documents {
+  "jsonrpc": "2.0",
+  "id": "1775810435970-uvn9nv1km",
+  "method": "tools/call",
+  "params": {
+    "name": "get_judicial_documents",
+    "arguments": {
+      "searchKey": "甲方（用人单位）：万得信息技术股份有限公司"
+    }
+  }
+}
+2026-04-10 08:40:35.971 [info] [QCC MCP] 调用 risk/get_business_exception {
+  "jsonrpc": "2.0",
+  "id": "1775810435971-iw6421gl7",
+  "method": "tools/call",
+  "params": {
+    "name": "get_business_exception",
+    "arguments": {
+      "searchKey": "甲方（用人单位）：万得信息技术股份有限公司"
+    }
+  }
+}
+2026-04-10 08:40:35.972 [info] [QCC MCP] 调用 risk/get_dishonest_info {
+  "jsonrpc": "2.0",
+  "id": "1775810435972-5yne1wt4k",
+  "method": "tools/call",
+  "params": {
+    "name": "get_dishonest_info",
+    "arguments": {
+      "searchKey": "甲方（用人单位）：万得信息技术股份有限公司"
+    }
+  }
+}
+2026-04-10 08:40:36.633 [info] [QCC MCP] 原始响应长度: 199 字符
+2026-04-10 08:40:36.634 [info] [QCC MCP] 原始响应内容: event: message
+data: {"result":{"content":[{"type":"text","text":"{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"}],"_extra":{"settlement":"free_no_match"}},"jsonrpc":"2.0","id":"1775810435970-uvn9nv1km"}
+2026-04-10 08:40:36.634 [info] [QCC MCP] 解析到 1 个结果，返回最后一个: {
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"
+    }
+  ],
+  "_extra": {
+    "settlement": "free_no_match"
+  }
+}
+2026-04-10 08:40:36.661 [info] [QCC MCP] 原始响应长度: 199 字符
+2026-04-10 08:40:36.661 [info] [QCC MCP] 原始响应内容: event: message
+data: {"result":{"content":[{"type":"text","text":"{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"}],"_extra":{"settlement":"free_no_match"}},"jsonrpc":"2.0","id":"1775810435972-5yne1wt4k"}
+2026-04-10 08:40:36.661 [info] [QCC MCP] 解析到 1 个结果，返回最后一个: {
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"
+    }
+  ],
+  "_extra": {
+    "settlement": "free_no_match"
+  }
+}
+2026-04-10 08:40:36.685 [info] [QCC MCP] 原始响应长度: 199 字符
+2026-04-10 08:40:36.685 [info] [QCC MCP] 原始响应内容: event: message
+data: {"result":{"content":[{"type":"text","text":"{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"}],"_extra":{"settlement":"free_no_match"}},"jsonrpc":"2.0","id":"1775810435971-iw6421gl7"}
+2026-04-10 08:40:36.685 [info] [QCC MCP] 解析到 1 个结果，返回最后一个: {
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"
+    }
+  ],
+  "_extra": {
+    "settlement": "free_no_match"
+  }
+}
+2026-04-10 08:40:37.371 [info] [QCC MCP] 原始响应长度: 199 字符
+2026-04-10 08:40:37.371 [info] [QCC MCP] 原始响应内容: event: message
+data: {"result":{"content":[{"type":"text","text":"{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"}],"_extra":{"settlement":"free_no_match"}},"jsonrpc":"2.0","id":"1775810435969-gu34y7tsg"}
+2026-04-10 08:40:37.371 [info] [QCC MCP] 解析到 1 个结果，返回最后一个: {
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"
+    }
+  ],
+  "_extra": {
+    "settlement": "free_no_match"
+  }
+}
+2026-04-10 08:40:37.371 [info] [QCC API] 企业信息结果: {
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"无匹配项\":\"未查询到匹配记录，建议核对查询条件后重新发起检索\"}"
+    }
+  ],
+  "_extra": {
+    "settlement": "free_no_match"
+  }
+}
+2026-04-10 08:40:37.371 [info] [QCC API] 解析后的企业数据: {
+  "无匹配项": "未查询到匹配记录，建议核对查询条件后重新发起检索"
+}
+2026-04-10 08:40:37.371 [info] [QCC API] 未找到企业: 甲方（用人单位）：万得信息技术股份有限公司

@@ -1,12 +1,12 @@
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 获取 pdfjs 版本并动态判断后缀名
-const pdfjsVersion = pdfjsLib.version;
-const workerExt = pdfjsVersion.startsWith('3') ? 'js' : 'mjs';
-
-// 使用多个 CDN 源备选（unpkg > cdnjs > jsdelivr）
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.${workerExt}`;
+// ✅ 使用本地 worker 文件，避免 CDN 加载失败
+// Vite 会自动将 worker 文件打包到 dist 目录
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
 
 /**
  * 从文件中提取文本内容
