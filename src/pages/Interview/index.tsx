@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, PhoneOff, User, ShieldCheck, AlertCircle, ArrowRight, Settings2, Camera, CameraOff, Loader2, Activity, Volume2, VolumeX, FileText } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, User, ShieldCheck, AlertCircle, ArrowRight, Settings2, Camera, CameraOff, Loader2, Activity, Volume2, VolumeX, FileText, Briefcase } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useSpeechDictation } from '../../hooks/useSpeechDictation';
 import { useAiSpeakLevel } from '../../hooks/useAiSpeakLevel';
-import { cancelBrowserSpeech, isBrowserTtsSupported, speakWithBrowser } from '../../utils/browserTts';
+import { cancelBrowserSpeech, ensureVoicesLoaded, isBrowserTtsSupported, speakWithBrowser } from '../../utils/browserTts';
 import { llmService, type LLMMessage } from '../../services/llmService';
 import { InterviewFloatingOrb } from '../../components/InterviewFloatingOrb';
 import { ResumeClinic } from '../../components/ResumeClinic';
@@ -178,6 +178,8 @@ export default function Interview() {
 
   const [step, setStep] = useState<'setup' | 'call' | 'report'>('setup');
   const [temperament, setTemperament] = useState(50);
+  const [targetJobTitle, setTargetJobTitle] = useState('');
+  const targetJobTitleRef = useRef('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
@@ -192,6 +194,7 @@ export default function Interview() {
   const [ttsOn, setTtsOn] = useState(true);
   const [orbVoiceActive, setOrbVoiceActive] = useState(false);
   const [voiceSessionActive, setVoiceSessionActive] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const voiceSessionActiveRef = useRef(false);
   const isMutedRef = useRef(false);
   const isThinkingRef = useRef(false);
@@ -200,6 +203,7 @@ export default function Interview() {
   const [resumeAnalysis, setResumeAnalysis] = useState<ResumeAnalysis | null>(null);
   const [resumeText, setResumeText] = useState<string>('');
   const resumeAnalysisRef = useRef<ResumeAnalysis | null>(null);
+  const resumeTextRef = useRef<string>('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -209,6 +213,20 @@ export default function Interview() {
   const transcriptRef = useRef<{ role: 'user' | 'ai'; text: string }[]>([]);
   const speechRef = useRef<ReturnType<typeof useSpeechDictation> | null>(null);
   const handleSendMessageRef = useRef<(text: string) => Promise<void>>(async () => {});
+
+  // 📝 网络状态检测 - Web Speech API 需要网络连接
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -223,6 +241,7 @@ export default function Interview() {
     setResumeAnalysis(analysis);
     setResumeText(text);
     resumeAnalysisRef.current = analysis;
+    resumeTextRef.current = text;
   }, []);
 
   /** 连续对话开启且未静音时，才向本页传入麦克风音频（硬件轨道关闭 + 停止识别，浏览器侧无法再拾取本轮流上的声音） */
@@ -294,8 +313,13 @@ export default function Interview() {
           role: 'hr',
           scenario: 'law_campus',
           locale: language,
-          resumePrompt: resumeAnalysisRef.current 
-            ? generateResumePrompt(resumeAnalysisRef.current, language) 
+          targetJobTitle: targetJobTitleRef.current.trim() || undefined,
+          resumePrompt: resumeAnalysisRef.current
+            ? generateResumePrompt(
+                resumeAnalysisRef.current,
+                language,
+                resumeTextRef.current,
+              )
             : undefined,
         },
       );
@@ -308,7 +332,7 @@ export default function Interview() {
         try {
           await speakWithBrowser(aiResponse, {
             lang: speechLang,
-            rate: 1.0,
+            voiceGender: 'male',
             onStart: () => setAiVolume(100),
             onEnd: () => {
               setAiVolume(0);
@@ -527,6 +551,10 @@ export default function Interview() {
     };
   }, []);
 
+  useEffect(() => {
+    void ensureVoicesLoaded();
+  }, []);
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <header className="mb-8">
@@ -540,6 +568,35 @@ export default function Interview() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
+          {/* 📝 网络状态警告 - Web Speech API 依赖网络 */}
+          {!isOnline && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3 rounded-2xl bg-rose-50 border border-rose-200 p-4"
+            >
+              <AlertCircle className="h-5 w-5 text-rose-500 shrink-0" />
+              <div className="text-sm">
+                <span className="font-semibold text-rose-700">{t('interview.setup.offlineTitle')}</span>
+                <span className="text-rose-600 ml-1">{t('interview.setup.offlineDesc')}</span>
+              </div>
+            </motion.div>
+          )}
+          
+          {/* 📝 中国大陆用户提示 - Google 服务可能被墙 */}
+          {isOnline && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3 rounded-2xl bg-amber-50 border border-amber-200 p-4"
+            >
+              <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+              <div className="text-sm">
+                <span className="font-semibold text-amber-700">{t('interview.setup.networkNoteTitle')}</span>
+                <span className="text-amber-600 ml-1">{t('interview.setup.networkNoteDesc')}</span>
+              </div>
+            </motion.div>
+          )}
           {/* 简历诊所区域 */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -557,7 +614,7 @@ export default function Interview() {
               </div>
             </div>
 
-            <ResumeClinic 
+            <ResumeClinic
               onAnalysisComplete={handleResumeAnalysisComplete}
               compact={false}
             />
@@ -568,6 +625,36 @@ export default function Interview() {
                 {t('resume.enableInterview')}
               </div>
             )}
+          </motion.div>
+
+          {/* 应聘岗位：与简历一并注入面试官上下文 */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="rounded-[40px] border border-slate-200 bg-white p-8 shadow-xl"
+          >
+            <div className="mb-6 flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                <Briefcase className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">{t('interview.setup.targetJobTitle')}</h3>
+                <p className="text-sm text-slate-500">{t('interview.setup.targetJobDesc')}</p>
+              </div>
+            </div>
+            <input
+              type="text"
+              value={targetJobTitle}
+              onChange={(e) => {
+                const v = e.target.value;
+                setTargetJobTitle(v);
+                targetJobTitleRef.current = v;
+              }}
+              placeholder={t('interview.setup.targetJobPlaceholder')}
+              maxLength={120}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            />
           </motion.div>
 
           {/* 面试官性格设置区域 */}

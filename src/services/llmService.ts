@@ -18,11 +18,39 @@ export interface LLMOptions {
   locale?: ReportLocale;
   /** 简历摘要，用于面试官参考（可选） */
   resumePrompt?: string;
+  /** 用户填写的目标应聘岗位，面试官据此与简历交叉提问 */
+  targetJobTitle?: string;
+}
+
+/** 将应聘岗位注入系统提示：要求结合简历（如有）与岗位追问 */
+function buildTargetJobPromptSection(
+  targetJobTitle: string | undefined,
+  locale: ReportLocale,
+): string {
+  const title = (targetJobTitle || '').trim();
+  if (!title) return '';
+
+  if (locale === 'en') {
+    return [
+      '## Target role (this session)',
+      `The candidate is interviewing for: ${title}`,
+      'You must anchor questions in this role. If a resume summary or excerpt is provided below, cross-check it against this role: relevance of experience, skill gaps, motivation, and role-specific scenarios.',
+      'Where natural, combine resume-backed facts with role expectations in the same question—without revealing you have read a document.',
+    ].join('\n');
+  }
+
+  return [
+    '## 本场应聘岗位',
+    `候选人目标岗位：${title}`,
+    '你必须围绕该岗位提问；若下方提供了简历摘要或原文，请将履历中的经历、技能与该岗位的职责与能力要求交叉对照，追问匹配度、可迁移能力、短板与岗位动机。',
+    '在对话中尽量自然地把「岗位要件」与「简历可追溯的事实」结合在同一问题里，不要对候选人说「我看过你的简历」之类的话。',
+  ].join('\n');
 }
 
 function buildLawCampusSystemPromptEn(
   temperature: number,
   role: 'hr' | 'lawyer',
+  targetJobTitle?: string,
 ): string {
   let style: string;
   if (temperature < 30) {
@@ -69,7 +97,11 @@ ${scenarioDesc}
 
 LANGUAGE: The candidate may speak Chinese or English; you MUST reply only in fluent, professional English.
 
-Begin the interview: ask for a brief self-introduction (target role and earliest availability), then ask your first role-relevant question.`;
+${
+    (targetJobTitle || '').trim()
+      ? `Begin the interview: greet briefly. The role is "${(targetJobTitle || '').trim()}". Ask the candidate to introduce how their background fits this role and their earliest availability, then ask one substantive question that ties this role to concrete experience or skills you would probe in a real screen.`
+      : 'Begin the interview: ask for a brief self-introduction (target role and earliest availability), then ask your first role-relevant question.'
+  }`;
 }
 
 export interface LLMService {
@@ -78,16 +110,22 @@ export interface LLMService {
 }
 
 function buildSystemPrompt(options: LLMOptions): string {
-  const { temperature, role = 'hr', scenario = 'layoff', locale = 'zh', resumePrompt } = options;
+  const {
+    temperature,
+    role = 'hr',
+    scenario = 'layoff',
+    locale = 'zh',
+    resumePrompt,
+    targetJobTitle,
+  } = options;
   const isCampusLawInterview = scenario === 'law_campus';
 
   if (isCampusLawInterview && locale === 'en') {
-    const basePrompt = buildLawCampusSystemPromptEn(temperature, role);
-    // 如果有简历信息，附加到系统提示末尾
-    if (resumePrompt) {
-      return basePrompt + '\n\n' + resumePrompt;
-    }
-    return basePrompt;
+    let p = buildLawCampusSystemPromptEn(temperature, role, targetJobTitle);
+    const jobSection = buildTargetJobPromptSection(targetJobTitle, 'en');
+    if (jobSection) p += '\n\n' + jobSection;
+    if (resumePrompt) p += '\n\n' + resumePrompt;
+    return p;
   }
 
   let style = '';
@@ -127,11 +165,14 @@ function buildSystemPrompt(options: LLMOptions): string {
           ? '公司HR高级经理'
           : '专业劳动法律师';
 
+  const jobTrim = (targetJobTitle || '').trim();
   const opening = isCampusLawInterview
-    ? '请开始面试：先请候选人简短自我介绍，说明应聘岗位与可到岗时间，再提出第一个与岗位相关的问题。'
+    ? jobTrim
+      ? `请开始面试：你已知晓候选人应聘「${jobTrim}」。先简短问好，再请对方结合该岗位做自我介绍（相关经历、能力与可到岗时间），随后提出第一个同时紧扣「该岗位职责与能力要求」与「其履历中可核实细节」的问题。`
+      : '请开始面试：先请候选人简短自我介绍，说明应聘岗位与可到岗时间，再提出第一个与岗位相关的问题。'
     : '请开始面试，首先问一个开场问题。';
 
-  return `${roleTitle}
+  const basePrompt = `${roleTitle}
 
 ## 角色设定
 - 角色类型：${roleType}
@@ -152,11 +193,11 @@ ${scenarioDesc}
 
 ${opening}`;
 
-  // 如果有简历信息，附加到系统提示末尾
-  if (resumePrompt) {
-    return basePrompt + '\n\n' + resumePrompt;
-  }
-  return basePrompt;
+  const jobSection = buildTargetJobPromptSection(targetJobTitle, locale);
+  let full = basePrompt;
+  if (jobSection) full += `\n\n${jobSection}`;
+  if (resumePrompt) full += `\n\n${resumePrompt}`;
+  return full;
 }
 
 function sliderToApiTemperature(slider: number): number {
@@ -336,21 +377,26 @@ export class DeepSeekLLMService implements LLMService {
     }
 
     const systemContent = isEn
-      ? 'You are a senior HR and career advisor who evaluates law students in mock corporate interviews (legal, compliance, or related roles). Output must be valid JSON matching the user schema exactly. Do not use markdown code fences. IMPORTANT: Every human-readable string value you output must be in English only—never Chinese or other languages.'
-      : '你是资深 HR 与职业发展顾问，擅长评估在校法学生参加企业岗位面试的表现。输出必须是合法 JSON，字段名与结构严格符合用户说明，不要 markdown 代码围栏。';
+      ? 'You are a senior HR and career advisor who evaluates law students in mock corporate interviews (legal, compliance, or related roles). Output must be valid JSON matching the user schema exactly. Do not use markdown code fences. IMPORTANT: Every human-readable string value you output must be in English only—never Chinese or other languages. The transcript is from speech recognition: never treat homophone/wrong-character ASR artifacts or filler words (um, uh, hmm, etc.) as candidate flaws; do not mention them or let them affect score or radar.'
+      : '你是资深 HR 与职业发展顾问，擅长评估在校法学生参加企业岗位面试的表现。输出必须是合法 JSON，字段名与结构严格符合用户说明，不要 markdown 代码围栏。对话来自语音识别转写：不得将同音别字、识别错字或语气词（嗯、啊、呃等）当作候选人失误，不得在报告中分析这些内容，也不得因此扣分或拉低各维度评分。';
 
     const userContent = isEn
       ? `Context: A law-student mock interview for corporate legal, compliance, or related roles.
 
 Analyze ONLY the real dialogue below. Do not invent facts that do not appear in the transcript.
 
+MANDATORY SCORING AND REPORT RULES:
+- The transcript is produced by automatic speech recognition (ASR). Homophones and wrong characters caused by ASR (e.g. words that sound alike but differ in writing) are NOT candidate errors. Never discuss "typos", "misheard words", or "wrong characters" in performanceInsights or suggestions, and never lower score or any radar value because of them.
+- Do NOT analyze, count, or criticize filler words or hesitation sounds (e.g. um, uh, er, hmm, like). They must not appear in performanceInsights or suggestions and must not reduce score or radar.
+- Evaluate only substantive performance: reasoning, legal/business relevance, answer structure, depth, and how the candidate handles substantive questions. "Expression" in radar means clarity of ideas and professional tone of content—not ASR noise or fillers.
+
 LANGUAGE RULE: The transcript may be in Chinese or English. Regardless, you MUST write every item in "performanceInsights" and "suggestions" in fluent English only (no Chinese characters, no mixed-language sentences).
 
 Return a single JSON object with exactly this shape (field names in English as listed):
-- score: integer 0–100 aligned with performance
-- performanceInsights: array of exactly 3 strings, all English only. Each about 25–55 words: concrete references or fair summary of the dialogue, strengths and gaps, professional and specific—no empty platitudes
-- suggestions: array of exactly 3 strings, all English only. Empathetic, tactful, actionable tips for follow-up communication and preparation—avoid harsh blame
-- radar: object with keys logic, emotion, professionalism, resilience—each an integer 0–100 reflecting logic, expression/empathy, role fit/professionalism, composure/adaptability as shown in the dialogue
+- score: integer 0–100 aligned with substantive performance only (ignore ASR word errors and fillers as defined above)
+- performanceInsights: array of exactly 3 strings, all English only. Each about 25–55 words: concrete references or fair summary of the dialogue, strengths and gaps, professional and specific—no empty platitudes; never mention ASR errors or filler frequency
+- suggestions: array of exactly 3 strings, all English only. Empathetic, tactful, actionable tips for follow-up communication and preparation—avoid harsh blame; do not suggest "reduce um/ah" or "fix dictation errors"
+- radar: object with keys logic, emotion, professionalism, resilience—each an integer 0–100 reflecting logic, substance clarity/empathy in content, role fit/professionalism, composure/adaptability on substantive questions; do not penalize for ASR or fillers
 
 Transcript:
 ${transcript || '(No valid dialogue.)'}
@@ -358,11 +404,19 @@ ${transcript || '(No valid dialogue.)'}
 Output only the JSON object, no other text.`
       : `场景：在校法学生参加企业法务/合规/相关岗位模拟面试。
 
-请仅根据下方真实对话逐句分析，不要编造对话中未出现的事实。生成一份 JSON，字段如下（严格 3+3 条，中文）：
-- score: number，综合分 0～100 的整数，与对话表现一致
-- performanceInsights: 长度恰好为 3 的字符串数组。「面试表现分析」用：每条 25～55 字，具体引用或概括对话中的事实，可含亮点与不足，客观专业，不要用空洞套话
-- suggestions: 长度恰好为 3 的字符串数组。「高情商建议」用：语气体贴、委婉、可执行，面向求职者后续如何沟通与准备，避免生硬批评
-- radar: 对象，键 logic、emotion、professionalism、resilience，各为 0～100 的整数；与对话中体现的逻辑、表达与共情、专业与岗位匹配、抗压与应变一致
+请仅根据下方真实对话逐句分析，不要编造对话中未出现的事实。
+
+【撰写与打分硬性规则】必须遵守：
+- 对话文本来自语音识别，可能存在同音别字、近音错字（例如「到岗」被写成「到港」）。一律不得视为候选人表达错误，不得在 performanceInsights、suggestions 中提及错别字、读音混淆、识别错字等；score 与各 radar 维度均不得因此扣分。
+- 不得分析、统计或批评语气词、填充词、停顿语（如嗯、啊、呃、那个、嘛、好吧等），不得写入报告，也不得因此拉低 score 或 radar。
+- 「表达与共情」等维度仅评价实质内容是否清楚、专业、有逻辑，不评价语气词多少或转写瑕疵。
+- 评分与点评仅围绕：逻辑思维、专业与岗位相关度、作答结构与深度、面对实质性问题的应对与应变等。
+
+生成一份 JSON，字段如下（严格 3+3 条，中文）：
+- score: number，综合分 0～100 的整数，仅反映实质表现，不受同音别字与语气词影响
+- performanceInsights: 长度恰好为 3 的字符串数组。「面试表现分析」用：每条 25～55 字，具体引用或概括对话中的事实，可含亮点与不足，客观专业，不要用空洞套话；禁止写识别错字、同音字、语气词过多等内容
+- suggestions: 长度恰好为 3 的字符串数组。「高情商建议」用：语气体贴、委婉、可执行；禁止建议「少说嗯啊」「注意错别字」等针对识别或语气词的内容
+- radar: 对象，键 logic、emotion、professionalism、resilience，各为 0～100 的整数；与对话中实质表现一致，不得因语气词或 ASR 错字压低 emotion 等维度
 
 对话记录：
 ${transcript || '（无有效对话）'}

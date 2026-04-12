@@ -39,25 +39,38 @@ export function ResumeClinic({ onAnalysisComplete, compact = false }: ResumeClin
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 加载历史记录
+  // 加载历史记录（失败时静默降级）
   useEffect(() => {
     if (user) {
-      loadHistory();
+      loadHistory().catch(() => {
+        // 网络错误时静默失败，不影响核心功能
+        console.warn('[ResumeClinic] History load failed, continuing in offline mode');
+      });
     }
   }, [user]);
 
   const loadHistory = async () => {
     setIsLoadingHistory(true);
-    const records = await getResumeAnalysisHistory(10);
-    setHistory(records);
-    setIsLoadingHistory(false);
+    try {
+      const records = await getResumeAnalysisHistory(10);
+      setHistory(records);
+    } catch (error) {
+      console.warn('[ResumeClinic] Failed to load history:', error);
+      setHistory([]); // 网络错误时使用空数组
+    } finally {
+      setIsLoadingHistory(false);
+    }
   };
 
   const handleDeleteHistory = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const success = await deleteResumeAnalysis(id);
-    if (success) {
-      setHistory(history.filter((h) => h.id !== id));
+    try {
+      const success = await deleteResumeAnalysis(id);
+      if (success) {
+        setHistory(history.filter((h) => h.id !== id));
+      }
+    } catch (error) {
+      console.warn('[ResumeClinic] Failed to delete history:', error);
     }
   };
 
@@ -99,16 +112,19 @@ export function ResumeClinic({ onAnalysisComplete, compact = false }: ResumeClin
       // 通知父组件
       onAnalysisComplete?.(result, parsed.text);
 
-      // 如果用户已登录，保存到数据库
+      // 如果用户已登录，尝试保存到数据库（失败不影响核心功能）
       if (user) {
-        await saveResumeAnalysis(file.name, result, parsed.text);
-        // 刷新历史记录
-        loadHistory();
+        saveResumeAnalysis(file.name, result, parsed.text)
+          .then(() => loadHistory())
+          .catch((error) => {
+            console.warn('[ResumeClinic] Failed to save to database:', error);
+          });
       }
     } catch (err) {
       setIsUploading(false);
       setIsAnalyzing(false);
-      setError(language === 'zh' ? '文件处理失败，请重试' : 'File processing failed, please try again');
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(language === 'zh' ? `文件处理失败：${errorMessage}` : `File processing failed: ${errorMessage}`);
       console.error('[ResumeClinic] Error:', err);
     }
   };

@@ -20,12 +20,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 添加超时保护，避免在网络错误时一直等待
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.warn('[Auth] Session fetch timeout, continuing in offline mode');
+        setLoading(false);
+      }
+    }, 5000);
+
     // 获取当前会话
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session }, error }) => {
+        if (error) {
+          console.warn('[Auth] Failed to get session:', error.message);
+        }
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        clearTimeout(timeoutId);
+      })
+      .catch((error) => {
+        console.warn('[Auth] Session fetch error:', error.message);
+        setLoading(false);
+        clearTimeout(timeoutId);
+      });
 
     // 监听认证状态变化
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -34,7 +52,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const signUp = async (email: string, password: string) => {

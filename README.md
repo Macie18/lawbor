@@ -251,3 +251,47 @@ MIT
       126 +                                                                                                                           
       127 +---                                                                                                                        
       128 +                                       
+
+      📦 推送详情                                                                                                     
+                                                                                                                  
+  - 远程仓库: https://github.com/Macie18/lawbor.git                                                               
+  - 最新提交: 31f9027 添加一键推送脚本和.gitignore配置                                                            
+  - 分支状态: main 分支已与 origin/main 同步                                                                      
+                                                                                                                  
+  🚀 一键推送脚本                                                                                                 
+                                                                                                                  
+  我已创建 push.sh 脚本，包含以下功能：                                                                           
+  - 自动添加所有更改文件                 
+  - 智能检测是否有更改需要提交                                                                                    
+  - 自动生成带时间戳的提交信息
+  - 推送到 GitHub 并显示结果                                                                                      
+                                         
+  使用方法                                                                                                        
+                                         
+  # 1. 直接运行脚本
+  ./push.sh
+
+  # 2. 或使用完整路径                                                                                             
+  sh /Users/macie/Documents/VibeCoding/lawbor/push.sh
+                                                                                                                  
+  设置快捷别名（推荐）                                                                                            
+                                                                                                                  
+  将以下代码添加到 ~/.zshrc 或 ~/.bashrc：                                                                        
+  alias push-lawbor="sh /Users/macie/Documents/VibeCoding/lawbor/push.sh"
+  然后重新加载配置：                                                                                              
+  source ~/.zshrc  # 或 source ~/.bashrc                                                                          
+  之后只需输入：                                                                                                  
+  push-lawbor                                                                                                     
+                                                                                                                  
+  📝 注意事项                                                                                                     
+                                                                                                                  
+  1. 本地设置文件: .claude/settings.local.json 未提交（已添加到 .gitignore），这是您的个人配置                    
+  2. 脚本权限: 已设置为可执行 (chmod +x push.sh)                                                                  
+  3. 安全提醒: 脚本会自动添加所有更改，请确保工作目录没有敏感文件                                                 
+                                                                                                                  
+  🔍 验证推送                                                                                                     
+                                                                                                                  
+  您可以通过以下链接查看仓库：                                                                                    
+  - https://github.com/Macie18/lawbor    
+                                                                                                                  
+  现在您可以使用 ./push.sh 或 push-lawbor 别名一键推送所有更改了！

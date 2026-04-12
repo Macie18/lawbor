@@ -229,9 +229,10 @@ function getMockAnalysis(locale: 'zh' | 'en'): ResumeAnalysis {
  * 生成用于面试的简历摘要
  * @param analysis - 简历分析结果
  * @param locale - 语言
+ * @param resumeText - 简历原文（可选）
  * @returns 用于注入面试官系统提示的简历摘要
  */
-export function generateResumePrompt(analysis: ResumeAnalysis, locale: 'zh' | 'en'): string {
+export function generateResumePrompt(analysis: ResumeAnalysis, locale: 'zh' | 'en', resumeText?: string): string {
   const isEn = locale === 'en';
 
   const lines: string[] = [];
@@ -256,6 +257,14 @@ export function generateResumePrompt(analysis: ResumeAnalysis, locale: 'zh' | 'e
 
     if (analysis.keyInfo.skills.length > 0) {
       lines.push(`Skills: ${analysis.keyInfo.skills.join(', ')}`);
+    }
+
+    // 添加简历原文（如果有）
+    if (resumeText && resumeText.trim()) {
+      lines.push('');
+      lines.push('## Resume Excerpt');
+      lines.push('');
+      lines.push(resumeText.trim());
     }
 
     lines.push('');
@@ -283,6 +292,14 @@ export function generateResumePrompt(analysis: ResumeAnalysis, locale: 'zh' | 'e
 
     if (analysis.keyInfo.skills.length > 0) {
       lines.push(`技能：${analysis.keyInfo.skills.join('、')}`);
+    }
+
+    // 添加简历原文（如果有）
+    if (resumeText && resumeText.trim()) {
+      lines.push('');
+      lines.push('## 简历原文');
+      lines.push('');
+      lines.push(resumeText.trim());
     }
 
     lines.push('');
