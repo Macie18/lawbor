@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { Select, Spin } from 'antd';
 import { useTranslation } from '../contexts/TranslationContext';
 import styles from './BenefitsGuide.module.css';
+import { CHINA_REGIONS, getCitiesByProvince, type Province, type City } from '../data/chinaRegions';
 
 const { Option } = Select;
 
@@ -20,13 +21,6 @@ interface TocItem {
 const POLICY_TYPES = [
   { id: 'social', name: '五险一金', nameEn: 'Social Insurance' },
   { id: 'employment', name: '就业扶持', nameEn: 'Employment Support' },
-];
-
-const CITIES = [
-  { id: 'beijing', name: '北京', nameEn: 'Beijing' },
-  { id: 'shanghai', name: '上海', nameEn: 'Shanghai' },
-  { id: 'tianjin', name: '天津', nameEn: 'Tianjin' },
-  { id: 'chongqing', name: '重庆', nameEn: 'Chongqing' },
 ];
 
 const benefits = [
@@ -173,7 +167,9 @@ export default function BenefitsGuide() {
   // ✅ 新增：政策类型状态
   const [policyType, setPolicyType] = useState<'social' | 'employment'>('social');
   const [expandedId, setExpandedId] = useState<string | null>('pension');
-  const [selectedCity, setSelectedCity] = useState<string | null>('beijing');
+  const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [availableCities, setAvailableCities] = useState<City[]>([]);
   const [markdownContent, setMarkdownContent] = useState<string>('');
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string>('');
@@ -191,6 +187,25 @@ export default function BenefitsGuide() {
       setError(null);
     }
   }, [selectedCity, language, policyType]);
+
+  // ✅ 新增：省份改变时，更新城市列表并重置城市选择
+  const handleProvinceChange = (provinceId: string) => {
+    setSelectedProvince(provinceId);
+    const cities = getCitiesByProvince(provinceId);
+    setAvailableCities(cities);
+    
+    // 如果只有一个城市（直辖市），自动选择
+    if (cities.length === 1) {
+      setSelectedCity(cities[0].id);
+    } else {
+      setSelectedCity(null);
+    }
+    
+    // 清空之前的内容
+    setMarkdownContent('');
+    setToc([]);
+    setError(null);
+  };
 
   // Scroll spy for TOC active state
   useEffect(() => {
@@ -303,8 +318,14 @@ export default function BenefitsGuide() {
 
   const getCityName = (id: string | null) => {
     if (!id) return '';
-    const city = CITIES.find(c => c.id === id);
-    return city ? (isEn ? city.nameEn : city.name) : id;
+    // 在所有省份中查找城市
+    for (const province of CHINA_REGIONS) {
+      const city = province.cities.find(c => c.id === id);
+      if (city) {
+        return isEn ? city.nameEn : city.name;
+      }
+    }
+    return id;
   };
 
   return (
@@ -337,8 +358,10 @@ export default function BenefitsGuide() {
               key={type.id}
               onClick={() => {
                 setPolicyType(type.id as 'social' | 'employment');
-                // 切换政策类型时重置城市选择
-                setSelectedCity(type.id === 'employment' ? 'beijing' : null);
+                // 切换政策类型时重置省市选择
+                setSelectedProvince(null);
+                setSelectedCity(null);
+                setAvailableCities([]);
               }}
               className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold transition-all ${
                 policyType === type.id
@@ -367,9 +390,13 @@ export default function BenefitsGuide() {
           {/* ✅ 就业扶持政策必须选择城市，不显示"全国通用"按钮 */}
           {policyType === 'social' && (
             <button
-              onClick={() => setSelectedCity(null)}
+              onClick={() => {
+                setSelectedProvince(null);
+                setSelectedCity(null);
+                setAvailableCities([]);
+              }}
               className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold transition-all ${
-                selectedCity === null
+                selectedProvince === null
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
@@ -379,20 +406,47 @@ export default function BenefitsGuide() {
             </button>
           )}
 
+          {/* 省份选择器 */}
           <Select
-            placeholder={isEn ? 'Select city' : '选择城市'}
-            style={{ width: 200 }}
+            placeholder={isEn ? 'Select province' : '选择省份'}
+            style={{ width: 180 }}
             size="large"
             className="benefits-city-select"
-            onChange={(value) => setSelectedCity(value)}
-            value={selectedCity}
+            onChange={handleProvinceChange}
+            value={selectedProvince}
+            showSearch
+            filterOption={(input, option) =>
+              (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+            }
           >
-            {CITIES.map((city) => (
-              <Option key={city.id} value={city.id}>
-                {isEn ? city.nameEn : `${city.name}市`}
+            {CHINA_REGIONS.map((province) => (
+              <Option key={province.id} value={province.id}>
+                {isEn ? province.nameEn : province.name}
               </Option>
             ))}
           </Select>
+
+          {/* 城市选择器（只有选择了省份且有多个城市时才显示） */}
+          {selectedProvince && availableCities.length > 1 && (
+            <Select
+              placeholder={isEn ? 'Select city' : '选择城市'}
+              style={{ width: 180 }}
+              size="large"
+              className="benefits-city-select"
+              onChange={(value) => setSelectedCity(value)}
+              value={selectedCity}
+              showSearch
+              filterOption={(input, option) =>
+                (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {availableCities.map((city) => (
+                <Option key={city.id} value={city.id}>
+                  {isEn ? city.nameEn : city.name}
+                </Option>
+              ))}
+            </Select>
+          )}
         </div>
       </div>
 
