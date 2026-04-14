@@ -10,6 +10,8 @@ export interface SpecialDeduction {
   continuingEducationType: 'none' | 'academic' | 'professional';
   // 学历继续教育月数（最长48个月）
   continuingEducationMonths: number;
+  // ✅ 新增：职业资格取得证书月份（1-12），仅当选择职业资格时有效
+  professionalCertMonth?: number;
   
   // 大病医疗年度扣除（最高80000元）
   seriousIllness: number;
@@ -50,25 +52,32 @@ export interface BonusTaxResult {
   netBonus: number;
 }
 
-export const MONTHLY_TAX_BRACKETS = [
-  { upper: 3000, rate: 0.03, quickDed: 0 },
-  { upper: 12000, rate: 0.10, quickDed: 210 },
-  { upper: 25000, rate: 0.20, quickDed: 1410 },
-  { upper: 35000, rate: 0.25, quickDed: 2660 },
-  { upper: 55000, rate: 0.30, quickDed: 4410 },
-  { upper: 80000, rate: 0.35, quickDed: 7160 },
-  { upper: Infinity, rate: 0.45, quickDed: 15160 },
+// ✅ 修正：累计预扣预缴税率表（2026年标准）
+// 数据来源：《个人所得税专项附加扣除暂行办法》
+// 累计预扣预缴应纳税所得额 = 累计收入 - 累计免税收入 - 累计减除费用 - 累计专项扣除 - 累计专项附加扣除
+export const CUMULATIVE_TAX_BRACKETS = [
+  { upper: 36000, rate: 0.03, quickDed: 0 },        // 不超过36,000元
+  { upper: 144000, rate: 0.10, quickDed: 2520 },     // 超过36,000元至144,000元
+  { upper: 300000, rate: 0.20, quickDed: 16920 },    // 超过144,000元至300,000元
+  { upper: 420000, rate: 0.25, quickDed: 31920 },    // 超过300,000元至420,000元
+  { upper: 660000, rate: 0.30, quickDed: 52920 },    // 超过420,000元至660,000元
+  { upper: 960000, rate: 0.35, quickDed: 85920 },    // 超过660,000元至960,000元
+  { upper: Infinity, rate: 0.45, quickDed: 181920 }, // 超过960,000元
 ];
 
 export const THRESHOLD = 5000;
 
+/**
+ * 根据累计应纳税所得额查找适用税率和速算扣除数
+ * 使用累计预扣预缴税率表（2026年标准）
+ */
 export function getTaxInfo(taxable: number) {
-  for (const bracket of MONTHLY_TAX_BRACKETS) {
+  for (const bracket of CUMULATIVE_TAX_BRACKETS) {
     if (taxable <= bracket.upper) {
       return { rate: bracket.rate, quickDed: bracket.quickDed };
     }
   }
-  return { rate: 0.45, quickDed: 15160 };
+  return { rate: 0.45, quickDed: 181920 };
 }
 
 /**
@@ -90,9 +99,12 @@ export function calculateMonthlyDeduction(deductions: SpecialDeduction): number 
     const months = Math.min(deductions.continuingEducationMonths || 1, 48);
     total += 400; // 每月固定400元，在有效期内
   } else if (deductions.continuingEducationType === 'professional') {
-    // 职业资格继续教育：3600元/年（取得证书当年）
-    // 折算月度：3600/12 = 300元/月
-    total += 300;
+    // ✅ 修复：职业资格继续教育：3600元/年（取得证书当年）
+    // 按剩余月份扣除：如6月取得，则扣除12-6+1=7个月
+    const certMonth = deductions.professionalCertMonth || 1;
+    const remainingMonths = 13 - certMonth; // 取得证书月份到年底的月数
+    const monthlyDeduction = 3600 / 12; // 300元/月
+    total += monthlyDeduction * remainingMonths;
   }
   
   // 4. 大病医疗：年度扣除，月度计算时不计入
@@ -275,6 +287,63 @@ export function reverseGrossFromNet(
   return gross;
 }
 
+// ✅ 新增：省份到基准城市的映射表（34个省级行政区 → 7个基准城市）
+export const PROVINCE_TO_CITY: Record<string, string> = {
+  // 直辖市（4个）
+  'beijing': 'beijing',
+  'tianjin': 'beijing',
+  'shanghai': 'shanghai',
+  'chongqing': 'chengdu',
+  
+  // 省份 - 华北（3个）
+  'hebei': 'beijing',
+  'shanxi': 'beijing',
+  
+  // 省份 - 东北（3个）
+  'liaoning': 'beijing',
+  'jilin': 'beijing',
+  'heilongjiang': 'beijing',
+  
+  // 省份 - 华东（7个）
+  'jiangsu': 'shanghai',
+  'zhejiang': 'hangzhou',
+  'anhui': 'hangzhou',
+  'fujian': 'guangzhou',
+  'jiangxi': 'guangzhou',
+  'shandong': 'beijing',
+  'taiwan': 'default',
+  
+  // 省份 - 华中（3个）
+  'henan': 'beijing',
+  'hubei': 'chengdu',
+  'hunan': 'guangzhou',
+  
+  // 省份 - 华南（3个）
+  'guangdong': 'guangzhou',
+  'hainan': 'guangzhou',
+  
+  // 省份 - 西南（4个，含重庆已计算）
+  'sichuan': 'chengdu',
+  'guizhou': 'chengdu',
+  'yunnan': 'chengdu',
+  
+  // 省份 - 西北（5个）
+  'shaanxi': 'chengdu',
+  'gansu': 'chengdu',
+  'qinghai': 'chengdu',
+  
+  // 自治区（5个）
+  'neimenggu': 'beijing',
+  'guangxi': 'guangzhou',
+  'xizang': 'chengdu',
+  'ningxia': 'chengdu',
+  'xinjiang': 'chengdu',
+  
+  // 特别行政区（2个）
+  'hongkong': 'shenzhen',
+  'macau': 'guangzhou',
+};
+
 export const SOCIAL_RATES: Record<string, any> = {
   'beijing': {
     pension: { personal: 0.08, company: 0.16 },
@@ -381,8 +450,14 @@ export function calculateSocialInsurance(salary: number, city: string, customFun
   };
 }
 
+/**
+ * 检测年终奖"多发1元陷阱"
+ * 基于累计预扣预缴税率表（2026年标准）
+ * 年终奖除以12个月后，查找对应税率档次
+ */
 export function checkBonusTrap(bonus: number) {
   const traps = [
+    // 基于累计预扣税率表的边界值（除以12个月）
     { start: 36000, end: 36000 + 2300, msg: '多发1元，多缴税¥2300+' },
     { start: 144000, end: 144000 + 13000, msg: '多发1元，多缴税¥13000+' },
     { start: 300000, end: 300000 + 13750, msg: '多发1元，多缴税¥13750+' },
@@ -397,4 +472,155 @@ export function checkBonusTrap(bonus: number) {
     }
   }
   return null;
+}
+
+// ✅ 新增：其他收入类型接口
+export interface OtherIncome {
+  laborIncome: number;      // 劳务报酬
+  royaltyIncome: number;    // 稿酬
+  franchiseIncome: number;  // 特许权使用费
+}
+
+// ✅ 新增：劳务报酬预扣计算（按次）
+export function calculateLaborTax(income: number): number {
+  if (income <= 0) return 0;
+  
+  // 不超过4000元，减除800元后按20%预扣
+  if (income <= 4000) {
+    return Math.max(0, (income - 800) * 0.2);
+  }
+  
+  // 超过4000元，减除20%费用后，按20%/30%/40%预扣
+  const taxable = income * 0.8;
+  
+  if (taxable <= 20000) {
+    return taxable * 0.2;
+  } else if (taxable <= 50000) {
+    return taxable * 0.3 - 2000;
+  } else {
+    return taxable * 0.4 - 7000;
+  }
+}
+
+// ✅ 新增：稿酬预扣计算（按次）
+export function calculateRoyaltyTax(income: number): number {
+  if (income <= 0) return 0;
+  
+  // 不超过4000元，减除800元后，70%计入收入，20%预扣
+  if (income <= 4000) {
+    return Math.max(0, (income - 800) * 0.7 * 0.2);
+  }
+  
+  // 超过4000元，减除20%费用后，70%计入收入，20%预扣
+  return income * 0.8 * 0.7 * 0.2;
+}
+
+// ✅ 新增：特许权使用费预扣计算（按次）
+export function calculateFranchiseTax(income: number): number {
+  if (income <= 0) return 0;
+  
+  // 不超过4000元，减除800元后按20%预扣
+  if (income <= 4000) {
+    return Math.max(0, (income - 800) * 0.2);
+  }
+  
+  // 超过4000元，减除20%费用后按20%预扣
+  return income * 0.8 * 0.2;
+}
+
+// ✅ 新增：计算其他收入的应税所得额（用于年度汇算）
+export function calculateOtherIncomeTaxable(otherIncome: OtherIncome): number {
+  // 劳务报酬：收入 × (1 - 20%)
+  const laborTaxable = otherIncome.laborIncome * 0.8;
+  
+  // 稿酬：收入 × 70% × (1 - 20%) = 收入 × 56%
+  const royaltyTaxable = otherIncome.royaltyIncome * 0.56;
+  
+  // 特许权使用费：收入 × (1 - 20%)
+  const franchiseTaxable = otherIncome.franchiseIncome * 0.8;
+  
+  return laborTaxable + royaltyTaxable + franchiseTaxable;
+}
+
+// ✅ 新增：年度汇算清缴输入接口
+export interface AnnualSettlementInput {
+  annualSalary: number;           // 年度工资总额（税前）
+  annualBonus: number;            // 年终奖（已选择单独计税或合并）
+  otherIncome: OtherIncome;       // 其他收入来源
+  socialInsurance: number;        // 年度社保个人部分总额
+  specialDeductions: SpecialDeduction; // 专项附加扣除
+  prepaidTax: number;             // 已预缴税额总额
+}
+
+// ✅ 新增：年度汇算清缴结果接口
+export interface AnnualSettlementResult {
+  totalIncome: number;            // 年度总收入
+  salaryTaxable: number;          // 工资应税所得
+  bonusTaxable: number;           // 年终奖应税所得（合并计税）
+  otherIncomeTaxable: number;     // 其他收入应税所得
+  socialInsurance: number;        // 社保扣除
+  annualDeduction: number;        // 专项附加扣除
+  threshold: number;              // 起征点（60000）
+  taxableIncome: number;          // 年度应税所得
+  taxRate: number;                // 适用税率
+  quickDeduction: number;         // 速算扣除数
+  annualTax: number;              // 年度应纳税额
+  prepaidTax: number;             // 已预缴税额
+  refundOrPay: number;           // 应补/应退税额（正数=补税，负数=退税）
+}
+
+// ✅ 新增：年度汇算清缴计算函数
+export function calculateAnnualSettlement(
+  input: AnnualSettlementInput
+): AnnualSettlementResult {
+  // 1. 计算工资应税所得（年度工资 - 年度社保）
+  const salaryTaxable = Math.max(0, input.annualSalary - input.socialInsurance);
+  
+  // 2. 年终奖应税所得（合并计税时才计入）
+  const bonusTaxable = input.annualBonus;
+  
+  // 3. 其他收入应税所得
+  const otherIncomeTaxable = calculateOtherIncomeTaxable(input.otherIncome);
+  
+  // 4. 年度总收入
+  const totalIncome = input.annualSalary + input.annualBonus + 
+    input.otherIncome.laborIncome + 
+    input.otherIncome.royaltyIncome + 
+    input.otherIncome.franchiseIncome;
+  
+  // 5. 专项附加扣除（含大病医疗）
+  const annualDeduction = calculateAnnualDeduction(input.specialDeductions);
+  
+  // 6. 起征点（年度60000）
+  const threshold = THRESHOLD * 12;
+  
+  // 7. 年度应税所得 = 工资应税所得 + 年终奖 + 其他收入应税所得 - 专项附加扣除 - 起征点
+  const taxableIncome = Math.max(0, 
+    salaryTaxable + bonusTaxable + otherIncomeTaxable - annualDeduction - threshold
+  );
+  
+  // 8. 查找适用税率和速算扣除数
+  const { rate, quickDed } = getTaxInfo(taxableIncome);
+  
+  // 9. 年度应纳税额
+  const annualTax = taxableIncome * rate - quickDed;
+  
+  // 10. 应补/应退税额 = 年度应纳税额 - 已预缴税额
+  const refundOrPay = annualTax - input.prepaidTax;
+  
+  return {
+    totalIncome,
+    salaryTaxable,
+    bonusTaxable,
+    otherIncomeTaxable,
+    socialInsurance: input.socialInsurance,
+    annualDeduction,
+    threshold,
+    taxableIncome,
+    taxRate: rate,
+    quickDeduction: quickDed,
+    annualTax,
+    prepaidTax: input.prepaidTax,
+    refundOrPay,
+  };
 }
