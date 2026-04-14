@@ -9,14 +9,6 @@ export default function Dashboard() {
 
   const modules = [
     {
-      id: 'contract',
-      title: t('nav.contract'),
-      description: t('contract.desc'),
-      icon: FileText,
-      color: 'bg-indigo-500',
-      path: '/contract',
-    },
-    {
       id: 'interview',
       title: language === 'zh' ? '1v1 模拟面试' : '1v1 Mock Interview',
       description: language === 'zh' 
@@ -25,6 +17,14 @@ export default function Dashboard() {
       icon: MessageSquare,
       color: 'bg-violet-500',
       path: '/interview',
+    },
+    {
+      id: 'contract',
+      title: t('nav.contract'),
+      description: t('contract.desc'),
+      icon: FileText,
+      color: 'bg-indigo-500',
+      path: '/contract',
     },
     {
       id: 'tax',

@@ -22,8 +22,8 @@ export default function Layout() {
 
   const navItems = [
     { path: `/dashboard`, label: t('nav.dashboard'), icon: LayoutDashboard },
-    { path: `/contract`, label: t('nav.contract'), icon: FileText },
     { path: `/interview`, label: t('nav.interview'), icon: MessageSquare },
+    { path: `/contract`, label: t('nav.contract'), icon: FileText },
     { path: `/tax`, label: t('nav.tax'), icon: Calculator },
     { path: `/knowledge`, label: t('nav.knowledge'), icon: BookOpen },
     { path: `/arbitration`, label: t('nav.arbitration'), icon: Gavel },
