@@ -38,6 +38,8 @@ export interface LaborDispute {
   caseStatus: string;              // 案件状态
   amount?: string;                 // 涉案金额
   summary: string;                 // 案件摘要
+  judgmentResult?: string;         // 裁判结果（司法文书特有）
+  judgmentDate?: string;           // 裁判日期（司法文书特有）
 }
 
 export interface JudicialRisk {

@@ -70,7 +70,6 @@ export interface RiskAssessment {
   explanation: string;        // 大白话解读
   legal_basis: string;        // 法律依据
   negotiation_tip: string;    // 谈判话术建议
-  score: number;              // 单项评分 (0-100, 100=安全)
 }
 
 // ── 合同审查结果 ───────────────────────────────────────────────
@@ -78,7 +77,6 @@ export interface RiskAssessment {
 export interface ContractReviewResult {
   extractedClauses: ExtractedClause[];      // 结构化提取的条款
   riskAssessments: RiskAssessment[];        // 风险评估列表
-  overallScore: number;                     // 整体评分 (0-100)
   overallLevel: RiskLevel;                  // 整体风险等级
   summary: string;                          // 一句话总结
 }

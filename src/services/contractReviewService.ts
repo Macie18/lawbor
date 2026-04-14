@@ -51,7 +51,6 @@ interface DifyResponse {
 
 // Dify 返回的 JSON 结构（你的 Agent 配置的格式）
 interface DifyReviewResult {
-  overallScore: number;
   overallLevel: RiskLevel;
   summary: string;
   riskItems: Array<{
@@ -194,11 +193,8 @@ async function callDifyAPIStream(
 
 // ── JSON 解析 ──────────────────────────────────────────────────
 
-function parseDifyResponse(text: string): DifyReviewResult | null {
-  if (!text || text.length < 10) {
-    console.error('[ContractReview] 返回文本过短:', text);
-    return null;
-  }
+function tryParseJSON(text: string): DifyReviewResult | null {
+  if (!text || text.length < 10) return null;
 
   let cleaned = text.trim();
 
@@ -210,33 +206,51 @@ function parseDifyResponse(text: string): DifyReviewResult | null {
   if (cleaned.endsWith('```')) {
     cleaned = cleaned.slice(0, -3);
   }
-
-  // 移除可能的截断字符
   cleaned = cleaned.trim();
 
-  // 尝试正常解析
+  // 方法1：直接解析
   try {
     return JSON.parse(cleaned) as DifyReviewResult;
-  } catch (e) {
-    // 尝试提取完整的 JSON 对象
-    console.warn('[ContractReview] 正常解析失败，尝试提取 JSON');
+  } catch { /* 继续尝试其他方法 */ }
 
-    // 找到第一个 { 和最后一个 } 之间的内容
-    const startIdx = cleaned.indexOf('{');
-    const endIdx = cleaned.lastIndexOf('}');
+  // 方法2：提取 JSON 对象（处理流式传输被截断的情况）
+  // 找第一个 { 和最后一个 } 之间的内容
+  const startIdx = cleaned.indexOf('{');
+  const endIdx = cleaned.lastIndexOf('}');
 
-    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-      const extracted = cleaned.substring(startIdx, endIdx + 1);
-      try {
-        return JSON.parse(extracted) as DifyReviewResult;
-      } catch {
-        // 还是失败
-      }
-    }
-
-    console.error('[ContractReview] JSON 解析失败:', cleaned.slice(-100));
-    return null;
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    const extracted = cleaned.substring(startIdx, endIdx + 1);
+    try {
+      return JSON.parse(extracted) as DifyReviewResult;
+    } catch { /* 继续尝试 */ }
   }
+
+  // 方法3：逐字符向后查找完整的 JSON（处理不完整的尾随字符）
+  if (startIdx !== -1) {
+    const partial = cleaned.substring(startIdx);
+    // 尝试从后向前移除不完整的尾随字符
+    for (let i = partial.length - 1; i >= 0; i--) {
+      const candidate = partial.substring(0, i + 1);
+      try {
+        const result = JSON.parse(candidate) as DifyReviewResult;
+        // 确保解析结果有必要的字段（移除 overallScore 检查）
+        if (result.overallLevel !== undefined && result.riskItems) {
+          return result;
+        }
+      } catch { /* 继续尝试更短的 */ }
+    }
+  }
+
+  return null;
+}
+
+function parseDifyResponse(text: string): DifyReviewResult | null {
+  const result = tryParseJSON(text);
+  if (!result) {
+    console.error('[ContractReview] JSON 解析失败, 文本长度:', text.length);
+    console.error('[ContractReview] 文本末尾:', text.slice(-200));
+  }
+  return result;
 }
 
 // ── 风险等级排序 ──────────────────────────────────────────────
@@ -284,11 +298,14 @@ export async function runContractReview(
     progress: 50,
   });
 
-  // 调用 Dify（阻塞模式确保获取完整 JSON）
+  // 调用 Dify（System Prompt 已在 Dify 后台配置）
+  // 前端只需传合同内容，Dify 会自动拼接 System Prompt + 用户输入
   let content = '';
+  let streamError = null;
+
   try {
     content = await callDifyAPIStream(
-      `请审查以下劳动合同的风险，返回完整的JSON:\n\n${rawText}`,
+      rawText,
       (text, isFinal) => {
         onStream?.(text);
         if (isFinal) {
@@ -301,16 +318,25 @@ export async function runContractReview(
       }
     );
   } catch (e) {
-    // 如果流式失败，尝试阻塞模式
+    streamError = e;
     console.warn('[ContractReview] 流式调用失败，尝试阻塞模式');
-    content = await callDifyAPI(`请审查以下劳动合同的风险，返回完整的JSON:\n\n${rawText}`);
+  }
+
+  // 如果流式失败或解析失败，尝试阻塞模式
+  if (streamError || !parseDifyResponse(content)) {
+    try {
+      content = await callDifyAPI(rawText);
+    } catch (e2) {
+      console.error('[ContractReview] 阻塞模式也失败:', e2);
+      throw new Error('Dify API 调用失败，请稍后重试');
+    }
   }
 
   // 解析 Dify 返回的 JSON
   const difyResult = parseDifyResponse(content);
 
   if (!difyResult) {
-    console.error('[ContractReview] Dify 返回无效 JSON:', content);
+    console.error('[ContractReview] Dify 返回无效 JSON, 长度:', content?.length);
     throw new Error('无法解析 Dify 返回的评估结果');
   }
 
@@ -323,7 +349,6 @@ export async function runContractReview(
     explanation: item.explanation,
     legal_basis: item.legalBasis,
     negotiation_tip: item.negotiationTip,
-    score: difyResult.overallScore, // 暂时用整体评分
   }));
 
   // 按风险等级排序
@@ -333,7 +358,6 @@ export async function runContractReview(
   const result: ContractReviewResult = {
     extractedClauses: [], // Dify 没有单独返回条款结构
     riskAssessments,
-    overallScore: difyResult.overallScore,
     overallLevel: difyResult.overallLevel,
     summary: difyResult.summary,
   };

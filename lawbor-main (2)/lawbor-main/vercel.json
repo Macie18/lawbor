@@ -1,1 +1,0 @@
-{"rewrites": [{"source": "/api/qcc/company-risk", "destination": "/api/qcc/company-risk"}, {"source": "/api/qcc/tools", "destination": "/api/qcc/tools"}, {"source": "/api/health", "destination": "/api/health"}, {"source": "/policies/:path*", "destination": "/policies/:path*"}, {"source": "/(.*)", "destination": "/index.html"}]}

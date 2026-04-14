@@ -297,9 +297,21 @@ export default function CompanyRiskPage() {
                 )}
 
                 <div className="flex items-start justify-between mb-2">
-                  <span className="font-mono text-xs text-slate-500">
-                    {(dispute as any).案号 || dispute.caseNo}
-                  </span>
+                  <div className="flex-1">
+                    <span className="font-mono text-xs text-slate-500">
+                      {(dispute as any).案号 || dispute.caseNo}
+                    </span>
+                    {/* ✅ 添加案件来源标识 */}
+                    {dispute.judgmentResult && dispute.judgmentResult !== '-' ? (
+                      <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                        {language === 'zh' ? '已判决' : 'Judged'}
+                      </span>
+                    ) : (
+                      <span className="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                        {language === 'zh' ? '立案中' : 'Filed'}
+                      </span>
+                    )}
+                  </div>
                   <span className={`text-xs px-2 py-1 rounded-full ${
                     isRecent ? 'bg-orange-100 text-orange-700' : 'bg-violet-100 text-violet-700'
                   }`}>
@@ -307,9 +319,24 @@ export default function CompanyRiskPage() {
                   </span>
                 </div>
 
-                <p className="text-sm text-slate-600 mb-2">
-                  {(dispute as any).法院 || '点击查看详情'}
-                </p>
+                {/* ✅ 收起状态显示关键信息 */}
+                <div className="mb-2">
+                  {/* 原告被告 */}
+                  <div className="text-xs text-slate-600">
+                    {dispute.plaintiff && dispute.plaintiff !== '-' && (
+                      <span className="mr-2">
+                        {language === 'zh' ? '原告：' : 'Plaintiff: '}
+                        <span className="font-medium text-slate-900">{dispute.plaintiff}</span>
+                      </span>
+                    )}
+                    {dispute.defendant && dispute.defendant !== '-' && (
+                      <span>
+                        {language === 'zh' ? '被告：' : 'Defendant: '}
+                        <span className="font-medium text-slate-900">{dispute.defendant}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
 
                 <div className="flex items-center gap-4 text-xs text-slate-400 mb-2">
                   <span className="flex items-center gap-1">
@@ -346,6 +373,19 @@ export default function CompanyRiskPage() {
                       className="overflow-hidden"
                     >
                       <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
+                        {/* 争议焦点 */}
+                        <div className="flex items-start gap-2 bg-blue-50 p-2 rounded border border-blue-100">
+                          <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                          <div>
+                            <span className="font-medium text-blue-900 text-sm">
+                              {language === 'zh' ? '争议焦点：' : 'Focus: '}
+                            </span>
+                            <span className="text-slate-900 text-sm">
+                              {dispute.caseType || dispute.caseReason || (dispute as any).案由 || '劳动争议'}
+                            </span>
+                          </div>
+                        </div>
+
                         {/* 原告 */}
                         {((dispute as any).当事人?.原告 || dispute.plaintiff) && (
                           <div className="flex items-start gap-2">
@@ -393,6 +433,17 @@ export default function CompanyRiskPage() {
                           </div>
                         )}
 
+                        {/* 立案日期 */}
+                        {dispute.filingDate && dispute.filingDate !== '-' && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <Calendar className="h-3 w-3" />
+                            <span>
+                              {language === 'zh' ? '立案日期：' : 'Filing Date: '}
+                              {dispute.filingDate}
+                            </span>
+                          </div>
+                        )}
+
                         {/* 案件状态 */}
                         {dispute.caseStatus && dispute.caseStatus !== '-' && (
                           <div className="flex items-center gap-2">
@@ -404,6 +455,32 @@ export default function CompanyRiskPage() {
                               <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
                                 {dispute.caseStatus}
                               </span>
+                            </span>
+                          </div>
+                        )}
+
+                        {/* ✅ 裁判结果 */}
+                        {((dispute as any).裁判结果 || dispute.judgmentResult) && ((dispute as any).裁判结果 !== '-' || dispute.judgmentResult !== '-') && (
+                          <div className="flex items-start gap-2">
+                            <Scale className="h-4 w-4 text-purple-600 mt-0.5" />
+                            <div className="text-sm flex-1">
+                              <span className="font-medium text-slate-600">
+                                {language === 'zh' ? '裁判结果：' : 'Judgment: '}
+                              </span>
+                              <div className="mt-1 p-2 bg-purple-50 rounded border border-purple-100 text-slate-900">
+                                {(dispute as any).裁判结果 || dispute.judgmentResult}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ✅ 裁判日期 */}
+                        {((dispute as any).裁判日期 || dispute.judgmentDate) && ((dispute as any).裁判日期 !== '-' || dispute.judgmentDate !== '-') && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <Calendar className="h-3 w-3" />
+                            <span>
+                              {language === 'zh' ? '裁判日期：' : 'Judgment Date: '}
+                              {(dispute as any).裁判日期 || dispute.judgmentDate}
                             </span>
                           </div>
                         )}

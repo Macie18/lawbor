@@ -12,7 +12,9 @@ import html2pdf from 'html2pdf.js';
 import type { 
   MonthlyTaxResult, 
   BonusTaxResult, 
-  SpecialDeduction 
+  SpecialDeduction,
+  OtherIncome,
+  AnnualSettlementResult
 } from '../lib/taxUtils';
 
 // 社保计算结果类型
@@ -58,6 +60,20 @@ export interface TaxReportData {
   
   // 年度明细（每月）
   annualResults?: MonthlyTaxResult[];
+  
+  // ✅ 新增：其他收入
+  otherIncome?: OtherIncome;
+  
+  // ✅ 新增：其他收入预扣税额
+  otherIncomeTax?: {
+    laborTax: number;
+    royaltyTax: number;
+    franchiseTax: number;
+    totalTax: number;
+  };
+  
+  // ✅ 新增：年度汇算清缴结果
+  settlementResult?: AnnualSettlementResult;
   
   // 语言
   language: 'zh' | 'en';
@@ -290,10 +306,58 @@ export function generateTaxReportPdf(data: TaxReportData): void {
         </table>
       </div>
       
+      <!-- ✅ 新增：其他收入来源 -->
+      ${data.otherIncome && (data.otherIncome.laborIncome > 0 || data.otherIncome.royaltyIncome > 0 || data.otherIncome.franchiseIncome > 0) ? `
+      <div style="margin-bottom: 25px;">
+        <div style="background: #10b981; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; font-weight: bold;">
+          ${isZh ? '五、其他收入来源' : '5. Other Income Sources'}
+        </div>
+        <table style="width: 100%; border-collapse: collapse; background: white;">
+          ${data.otherIncome.laborIncome > 0 ? `
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '劳务报酬' : 'Labor Income'}</td>
+            <td style="padding: 10px 15px; text-align: right; font-weight: 500;">${formatMoney(data.otherIncome.laborIncome)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+            <td style="padding: 10px 15px; color: #64748b; font-size: 13px;">${isZh ? '预扣税额' : 'Prepaid Tax'}</td>
+            <td style="padding: 10px 15px; text-align: right; color: #dc2626; font-weight: 500;">${formatMoney(data.otherIncomeTax?.laborTax || 0)}</td>
+          </tr>
+          ` : ''}
+          
+          ${data.otherIncome.royaltyIncome > 0 ? `
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '稿酬收入' : 'Royalty Income'}</td>
+            <td style="padding: 10px 15px; text-align: right; font-weight: 500;">${formatMoney(data.otherIncome.royaltyIncome)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+            <td style="padding: 10px 15px; color: #64748b; font-size: 13px;">${isZh ? '预扣税额' : 'Prepaid Tax'}</td>
+            <td style="padding: 10px 15px; text-align: right; color: #dc2626; font-weight: 500;">${formatMoney(data.otherIncomeTax?.royaltyTax || 0)}</td>
+          </tr>
+          ` : ''}
+          
+          ${data.otherIncome.franchiseIncome > 0 ? `
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '特许权使用费' : 'Franchise Income'}</td>
+            <td style="padding: 10px 15px; text-align: right; font-weight: 500;">${formatMoney(data.otherIncome.franchiseIncome)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+            <td style="padding: 10px 15px; color: #64748b; font-size: 13px;">${isZh ? '预扣税额' : 'Prepaid Tax'}</td>
+            <td style="padding: 10px 15px; text-align: right; color: #dc2626; font-weight: 500;">${formatMoney(data.otherIncomeTax?.franchiseTax || 0)}</td>
+          </tr>
+          ` : ''}
+          
+          <tr style="background: #f0fdf4;">
+            <td style="padding: 10px 15px; color: #334155; font-weight: bold;">${isZh ? '预扣税额合计' : 'Total Prepaid Tax'}</td>
+            <td style="padding: 10px 15px; text-align: right; font-weight: bold; color: #dc2626; font-size: 16px;">${formatMoney(data.otherIncomeTax?.totalTax || 0)}</td>
+          </tr>
+        </table>
+      </div>
+      ` : ''}
+      
       <!-- 5. 年度汇算估算 -->
       <div style="margin-bottom: 25px;">
         <div style="background: #3b82f6; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; font-weight: bold;">
-          ${isZh ? '五、年度汇算估算' : '5. Annual Settlement Estimate'}
+          ${data.settlementResult ? (isZh ? '六、年度汇算估算' : '6. Annual Settlement Estimate') : (isZh ? '五、年度汇算估算' : '5. Annual Settlement Estimate')}
         </div>
         <table style="width: 100%; border-collapse: collapse; background: white;">
           <tr style="border-bottom: 1px solid #e2e8f0;">
@@ -356,6 +420,101 @@ export function generateTaxReportPdf(data: TaxReportData): void {
         </div>
         ` : ''}
       </div>
+      
+      <!-- ✅ 新增：年度汇算清缴详细结果 -->
+      ${data.settlementResult ? `
+      <div style="margin-bottom: 25px;">
+        <div style="background: #8b5cf6; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; font-weight: bold;">
+          ${isZh ? '七、年度汇算清缴详细结果' : '7. Annual Settlement Details'}
+        </div>
+        
+        <!-- 总收入概览 -->
+        <table style="width: 100%; border-collapse: collapse; background: white;">
+          <tr style="background: #f5f3ff; border-bottom: 2px solid #8b5cf6;">
+            <td style="padding: 12px 15px; color: #4c1d95; font-weight: bold; font-size: 15px;">${isZh ? '年度总收入' : 'Annual Total Income'}</td>
+            <td style="padding: 12px 15px; text-align: right; font-weight: bold; color: #7c3aed; font-size: 20px;">${formatMoney(data.settlementResult.totalIncome)}</td>
+          </tr>
+        </table>
+        
+        <!-- 应税所得明细 -->
+        <div style="padding: 10px 15px; background: #fafafa; font-weight: bold; color: #334155; border-top: 1px solid #e2e8f0;">
+          ${isZh ? '应税所得明细：' : 'Taxable Income Breakdown:'}
+        </div>
+        <table style="width: 100%; border-collapse: collapse; background: white;">
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '工资薪金应税所得' : 'Salary Taxable'}</td>
+            <td style="padding: 10px 15px; text-align: right;">${formatMoney(data.settlementResult.salaryTaxable)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '年终奖应税所得' : 'Bonus Taxable'}</td>
+            <td style="padding: 10px 15px; text-align: right;">${formatMoney(data.settlementResult.bonusTaxable)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '其他收入应税所得' : 'Other Income Taxable'}</td>
+            <td style="padding: 10px 15px; text-align: right;">${formatMoney(data.settlementResult.otherIncomeTaxable)}</td>
+          </tr>
+        </table>
+        
+        <!-- 扣除项明细 -->
+        <div style="padding: 10px 15px; background: #fafafa; font-weight: bold; color: #334155; border-top: 1px solid #e2e8f0;">
+          ${isZh ? '扣除项明细：' : 'Deductions Breakdown:'}
+        </div>
+        <table style="width: 100%; border-collapse: collapse; background: white;">
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '社保公积金扣除' : 'Social Insurance'}</td>
+            <td style="padding: 10px 15px; text-align: right;">${formatMoney(data.settlementResult.socialInsurance)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '专项附加扣除' : 'Special Deductions'}</td>
+            <td style="padding: 10px 15px; text-align: right;">${formatMoney(data.settlementResult.annualDeduction)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '起征点(60000元)' : 'Threshold (¥60,000)'}</td>
+            <td style="padding: 10px 15px; text-align: right;">${formatMoney(data.settlementResult.threshold)}</td>
+          </tr>
+        </table>
+        
+        <!-- 应纳税所得额 -->
+        <div style="padding: 10px 15px; background: #fef3c7; border-top: 2px solid #f59e0b;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #92400e; font-weight: bold; font-size: 14px;">${isZh ? '年度应税所得' : 'Annual Taxable Income'}</span>
+            <span style="color: #d97706; font-weight: bold; font-size: 18px;">${formatMoney(data.settlementResult.taxableIncome)}</span>
+          </div>
+          <div style="margin-top: 5px; font-size: 12px; color: #854d0e;">
+            ${isZh ? `适用税率：${(data.settlementResult.taxRate * 100).toFixed(0)}%` : `Tax Rate: ${(data.settlementResult.taxRate * 100).toFixed(0)}%`}
+          </div>
+        </div>
+        
+        <!-- 应补/应退税额 -->
+        <table style="width: 100%; border-collapse: collapse; background: white; margin-top: 10px;">
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '年度应纳税额' : 'Annual Tax Payable'}</td>
+            <td style="padding: 10px 15px; text-align: right; font-weight: 500; color: #dc2626;">${formatMoney(data.settlementResult.annualTax)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 15px; color: #475569;">${isZh ? '已预缴税额' : 'Prepaid Tax'}</td>
+            <td style="padding: 10px 15px; text-align: right; font-weight: 500;">${formatMoney(data.settlementResult.prepaidTax)}</td>
+          </tr>
+          <tr style="background: ${data.settlementResult.refundOrPay >= 0 ? '#fef2f2' : '#f0fdf4'};">
+            <td style="padding: 12px 15px; color: ${data.settlementResult.refundOrPay >= 0 ? '#991b1b' : '#166534'}; font-weight: bold; font-size: 15px;">
+              ${data.settlementResult.refundOrPay >= 0 
+                ? (isZh ? '应补税额' : 'Tax to Pay') 
+                : (isZh ? '应退税额' : 'Tax Refund')}
+            </td>
+            <td style="padding: 12px 15px; text-align: right; font-weight: bold; color: ${data.settlementResult.refundOrPay >= 0 ? '#dc2626' : '#16a34a'}; font-size: 18px;">
+              ¥${Math.abs(data.settlementResult.refundOrPay).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </td>
+          </tr>
+        </table>
+        
+        <!-- 提示 -->
+        <div style="background: ${data.settlementResult.refundOrPay >= 0 ? '#fef3c7' : '#d1fae5'}; border-left: 4px solid ${data.settlementResult.refundOrPay >= 0 ? '#f59e0b' : '#10b981'}; padding: 10px 15px; margin-top: 10px; color: ${data.settlementResult.refundOrPay >= 0 ? '#92400e' : '#065f46'}; font-size: 13px;">
+          ${data.settlementResult.refundOrPay >= 0 
+            ? (isZh ? '💡 提示：请在汇算清缴期限内补缴税款,以免产生滞纳金。' : '💡 Note: Please pay the tax within the deadline to avoid late fees.')
+            : (isZh ? '💡 提示：退税申请提交后,税务部门审核通过即可退回多缴税款。' : '💡 Note: After submitting the refund application, the tax authority will review and refund the overpaid tax.')}
+        </div>
+      </div>
+      ` : ''}
       
       <!-- 免责声明 -->
       <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-top: 30px;">

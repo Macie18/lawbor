@@ -86,15 +86,21 @@ function scoreVoiceNaturalness(label: string): number {
   if (/xiaoxiao|yunxi|xiaoyi|yunjian|xiaochen|xiaohan|xiaomeng|xiaorui|xiaoshuang|xiaoxuan|xiaoyou|yunfeng|yunyang/i.test(n)) {
     s += 22
   }
+  // macOS Siri 高质量语音（Eddy/Grandpa/Reed/Rocko 等）
+  if (/grandpa|eddy|reed|rocko|奶奶|grandma|flo|sandy|shelley/i.test(n)) {
+    s += 45
+  }
+  // Google 语音也比较自然
+  if (n.includes('google')) s += 25
   if (n.includes('compact') || n.includes('legacy') || n.includes('robotic')) s -= 35
   return s
 }
 
 /** 中文常见「晓」系多为女声；云扬/云野/云枫/云健等偏稳重男声 */
 const ZH_FEMALE_NAME_HINT =
-  /xiaoxiao|xiaoyi|xiaohan|xiaomeng|xiaorui|xiaoshuang|xiaoxuan|xiaoyan|xiaochen|xiaomo|xiaoyou|晓|女/i
+  /xiaoxiao|xiaoyi|xiaohan|xiaomeng|xiaorui|xiaoshuang|xiaoxuan|xiaoyan|xiaochen|xiaomo|xiaoyou|晓|女|婷婷|奶奶|grandma|flo|sandy|shelley/i
 const ZH_MALE_STEADY_HINT =
-  /yunyang|yunye|yunfeng|yunjian|kangkang|yunxi|云扬|云野|云枫|云健|云希|男/i
+  /yunyang|yunye|yunfeng|yunjian|kangkang|yunxi|云扬|云野|云枫|云健|云希|男|grandpa|eddy|reed|rocko/i
 
 /** 英文常见系统语音名启发式 */
 const EN_FEMALE_HINT =
@@ -118,6 +124,8 @@ function scoreVoiceGenderPreference(
       let s = 0
       if (/yunyang|yunye|yunfeng|yunjian/i.test(n)) s += 52
       else if (/yunxi|kangkang/i.test(n)) s += 34
+      // macOS Siri 男声（Grandpa/Eddy/Reed/Rocko）
+      else if (/grandpa|eddy|reed|rocko/i.test(n)) s += 48
       else if (ZH_MALE_STEADY_HINT.test(label)) s += 28
       if (ZH_FEMALE_NAME_HINT.test(label)) s -= 70
       return s

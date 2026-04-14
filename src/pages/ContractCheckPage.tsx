@@ -21,6 +21,9 @@ import {
   ArrowLeft,
   Shield,
   Building2,
+  History,
+  Trash2,
+  Eye,
 } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -55,7 +58,7 @@ export default function ContractCheckPage() {
   const { language } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { saveReview } = useContractReviews();
+  const { reviews, saveReview, deleteReview } = useContractReviews();
 
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -264,7 +267,7 @@ export default function ContractCheckPage() {
               )}
 
               {companyRiskReport && (
-                <CompanyRiskDisplay report={companyRiskReport} compact />
+                <CompanyRiskDisplay report={companyRiskReport} />
               )}
 
               {!detectedCompanyName && !companyRiskLoading && !companyRiskReport && (
@@ -395,35 +398,65 @@ export default function ContractCheckPage() {
               >
                 {/* 结果头部 */}
                 <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-lg text-slate-900">
-                      {language === 'zh' ? '审查结果' : 'Review Result'}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-bold ${
-                        result.overallLevel === 'high' ? 'text-red-600' :
-                        result.overallLevel === 'medium' ? 'text-amber-600' : 'text-green-600'
-                      }`}>
-                        {language === 'zh' ? `综合评分: ${result.overallScore}` : `Score: ${result.overallScore}`}
-                      </span>
-                    </div>
-                  </div>
+                  <h3 className="font-bold text-lg text-slate-900 mb-3">
+                    {language === 'zh' ? '审查结果' : 'Review Result'}
+                  </h3>
 
-                  {/* 过滤按钮 */}
+                  {/* 过滤按钮（显示条数） */}
                   <div className="flex gap-2 flex-wrap">
-                    {FILTER_OPTIONS.map(option => (
-                      <button
-                        key={option.key}
-                        onClick={() => setActiveFilter(option.key)}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                          activeFilter === option.key
-                            ? option.color + ' text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        {language === 'zh' ? option.label.zh : option.label.en}
-                      </button>
-                    ))}
+                    {/* 全部 */}
+                    <button
+                      onClick={() => setActiveFilter('all')}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                        activeFilter === 'all'
+                          ? 'bg-slate-600 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {language === 'zh' ? `全部 ${result.riskAssessments.length}条` : `All ${result.riskAssessments.length}`}
+                    </button>
+
+                    {/* 高危 */}
+                    <button
+                      onClick={() => setActiveFilter('high')}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                        activeFilter === 'high'
+                          ? 'bg-red-500 text-white'
+                          : 'bg-red-50 text-red-600 hover:bg-red-100'
+                      }`}
+                    >
+                      {language === 'zh'
+                        ? `高危 ${result.riskAssessments.filter(r => r.level === 'high').length}条`
+                        : `High ${result.riskAssessments.filter(r => r.level === 'high').length}`}
+                    </button>
+
+                    {/* 中危 */}
+                    <button
+                      onClick={() => setActiveFilter('medium')}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                        activeFilter === 'medium'
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                      }`}
+                    >
+                      {language === 'zh'
+                        ? `中危 ${result.riskAssessments.filter(r => r.level === 'medium').length}条`
+                        : `Medium ${result.riskAssessments.filter(r => r.level === 'medium').length}`}
+                    </button>
+
+                    {/* 低危 */}
+                    <button
+                      onClick={() => setActiveFilter('low')}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                        activeFilter === 'low'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                      }`}
+                    >
+                      {language === 'zh'
+                        ? `低危 ${result.riskAssessments.filter(r => r.level === 'low').length}条`
+                        : `Low ${result.riskAssessments.filter(r => r.level === 'low').length}`}
+                    </button>
                   </div>
                 </div>
 
@@ -443,6 +476,90 @@ export default function ContractCheckPage() {
             )}
           </div>
         </div>
+
+        {/* 历史审查记录（仅登录用户显示） */}
+        {user && reviews.length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-slate-900">
+              <History className="h-6 w-6 text-violet-600" />
+              {language === 'zh' ? '历史审查记录' : 'Review History'}
+            </h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {reviews.map(review => {
+                // 解析审查结果
+                let resultData: ContractReviewResult | null = null;
+                try {
+                  resultData = JSON.parse(review.review_result);
+                } catch { /* 忽略解析错误 */ }
+
+                return (
+                  <div
+                    key={review.id}
+                    className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-lg transition-shadow cursor-pointer group"
+                    onClick={() => {
+                      // 点击后显示详情
+                      setResult(resultData);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <p className="font-semibold text-slate-900 mb-1 group-hover:text-blue-600 transition-colors">
+                          {review.contract_name}
+                        </p>
+                        <p className="text-xs text-slate-500">{review.contract_type}</p>
+
+                        {resultData && (
+                          <div className="mt-3 space-y-1">
+                            {/* 风险统计 */}
+                            <div className="flex gap-2 flex-wrap">
+                              <span className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded">
+                                {language === 'zh' ? '高危' : 'High'} {resultData.riskAssessments?.filter(r => r.level === 'high').length || 0}
+                              </span>
+                              <span className="text-xs px-2 py-1 bg-amber-50 text-amber-600 rounded">
+                                {language === 'zh' ? '中危' : 'Medium'} {resultData.riskAssessments?.filter(r => r.level === 'medium').length || 0}
+                              </span>
+                              <span className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded">
+                                {language === 'zh' ? '低危' : 'Low'} {resultData.riskAssessments?.filter(r => r.level === 'low').length || 0}
+                              </span>
+                            </div>
+
+                            {/* 摘要 */}
+                            <p className="text-sm text-slate-600 mt-2 line-clamp-2">
+                              {resultData.summary}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 删除按钮 */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // 阻止冒泡，避免触发卡片点击
+                          deleteReview(review.id);
+                        }}
+                        className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                        title={language === 'zh' ? '删除记录' : 'Delete'}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* 查看详情提示 */}
+                    <div className="flex items-center gap-1 text-xs text-blue-600 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Eye className="h-3 w-3" />
+                      {language === 'zh' ? '点击查看详情' : 'Click to view details'}
+                    </div>
+
+                    <p className="text-xs text-slate-400 mt-2">
+                      {new Date(review.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

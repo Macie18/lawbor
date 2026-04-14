@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, PhoneOff, User, ShieldCheck, AlertCircle, ArrowRight, Settings2, Camera, CameraOff, Loader2, Activity, Volume2, VolumeX, FileText, Briefcase } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, User, ShieldCheck, AlertCircle, ArrowRight, Settings2, Camera, CameraOff, Loader2, Activity, Volume2, VolumeX, FileText, Briefcase, Play } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useSpeechDictation } from '../../hooks/useSpeechDictation';
 import { useAiSpeakLevel } from '../../hooks/useAiSpeakLevel';
 import { cancelBrowserSpeech, ensureVoicesLoaded, isBrowserTtsSupported, speakWithBrowser } from '../../utils/browserTts';
+import type { VoicePreference } from '../../utils/browserTts';
 import { llmService, type LLMMessage } from '../../services/llmService';
 import { InterviewFloatingOrb } from '../../components/InterviewFloatingOrb';
 import { ResumeClinic } from '../../components/ResumeClinic';
@@ -194,7 +195,6 @@ export default function Interview() {
   const [ttsOn, setTtsOn] = useState(true);
   const [orbVoiceActive, setOrbVoiceActive] = useState(false);
   const [voiceSessionActive, setVoiceSessionActive] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const voiceSessionActiveRef = useRef(false);
   const isMutedRef = useRef(false);
   const isThinkingRef = useRef(false);
@@ -204,6 +204,9 @@ export default function Interview() {
   const [resumeText, setResumeText] = useState<string>('');
   const resumeAnalysisRef = useRef<ResumeAnalysis | null>(null);
   const resumeTextRef = useRef<string>('');
+  
+  // 浏览器语音相关状态
+  const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -213,20 +216,6 @@ export default function Interview() {
   const transcriptRef = useRef<{ role: 'user' | 'ai'; text: string }[]>([]);
   const speechRef = useRef<ReturnType<typeof useSpeechDictation> | null>(null);
   const handleSendMessageRef = useRef<(text: string) => Promise<void>>(async () => {});
-
-  // 📝 网络状态检测 - Web Speech API 需要网络连接
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -243,6 +232,46 @@ export default function Interview() {
     resumeAnalysisRef.current = analysis;
     resumeTextRef.current = text;
   }, []);
+
+  // 加载浏览器语音列表（固定选择 Grandpa 大陆男声）
+  useEffect(() => {
+    async function loadVoices() {
+      const voices = await ensureVoicesLoaded();
+
+      // 1. 优先选择 Grandpa (中文（中国大陆）)
+      let selectedVoice = voices.find(v =>
+        v.name === 'Grandpa (中文（中国大陆）)' && v.lang === 'zh-CN'
+      );
+
+      // 2. 如果找不到，选择任意 Grandpa 中文语音
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v =>
+          v.name.includes('Grandpa') && v.lang.includes('zh')
+        );
+      }
+
+      // 3. 如果还找不到，选择其他中文男声
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v =>
+          /grandpa|eddy|reed|rocko/i.test(v.name) && v.lang.includes('zh')
+        );
+      }
+
+      // 4. 最后回退到任意中文语音
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v => v.lang.startsWith('zh'));
+      }
+
+      if (selectedVoice) {
+        setSelectedVoice(selectedVoice);
+        console.log('[TTS] 自动选择中文语音:', selectedVoice.name, selectedVoice.lang);
+      }
+    }
+
+    if (step === 'setup') {
+      loadVoices();
+    }
+  }, [step]);
 
   /** 连续对话开启且未静音时，才向本页传入麦克风音频（硬件轨道关闭 + 停止识别，浏览器侧无法再拾取本轮流上的声音） */
   useEffect(() => {
@@ -327,12 +356,14 @@ export default function Interview() {
       setMessages(prev => [...prev, { role: 'ai', text: aiResponse }]);
       transcriptRef.current.push({ role: 'ai', text: aiResponse });
 
-      if (ttsOn && isBrowserTtsSupported()) {
+      if (ttsOn) {
         setOrbVoiceActive(true);
         try {
           await speakWithBrowser(aiResponse, {
-            lang: speechLang,
-            voiceGender: 'male',
+            voice: selectedVoice || undefined,
+            rate: 1,
+            pitch: 1,
+            volume: 1,
             onStart: () => setAiVolume(100),
             onEnd: () => {
               setAiVolume(0);
@@ -551,9 +582,7 @@ export default function Interview() {
     };
   }, []);
 
-  useEffect(() => {
-    void ensureVoicesLoaded();
-  }, []);
+
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -568,22 +597,6 @@ export default function Interview() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
-          {/* 📝 网络状态警告 - Web Speech API 依赖网络 */}
-          {!isOnline && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 rounded-2xl bg-rose-50 border border-rose-200 p-4"
-            >
-              <AlertCircle className="h-5 w-5 text-rose-500 shrink-0" />
-              <div className="text-sm">
-                <span className="font-semibold text-rose-700">{t('interview.setup.offlineTitle')}</span>
-                <span className="text-rose-600 ml-1">{t('interview.setup.offlineDesc')}</span>
-              </div>
-            </motion.div>
-          )}
-          
-          
           {/* 简历诊所区域 */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}

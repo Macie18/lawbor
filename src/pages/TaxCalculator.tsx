@@ -36,15 +36,25 @@ import {
   calculateMonthlyDeduction,
   calculateAnnualDeduction,
   calculateAnnualTax,
+  calculateLaborTax,
+  calculateRoyaltyTax,
+  calculateFranchiseTax,
+  calculateOtherIncomeTaxable,
+  calculateAnnualSettlement,
   SpecialDeduction,
   MonthlyTaxResult,
   BonusTaxResult,
-  SOCIAL_RATES
+  OtherIncome,
+  AnnualSettlementInput,
+  AnnualSettlementResult,
+  SOCIAL_RATES,
+  PROVINCE_TO_CITY
 } from '../lib/taxUtils';
+import { getAllProvinces } from '../data/chinaRegions';
 import { cn } from '../lib/utils';
 import { generateTaxReportPdf, type TaxReportData } from '../services/taxReportPdf';
 
-type TaxTab = 'monthly' | 'bonus' | 'reverse' | 'social' | 'annual';
+type TaxTab = 'monthly' | 'bonus' | 'reverse' | 'social' | 'annual' | 'settlement';
 
 export default function TaxCalculator() {
   const { t, language } = useTranslation();
@@ -66,6 +76,7 @@ export default function TaxCalculator() {
     infantCare: 0,               // 3岁以下婴幼儿照护（2000元/孩/月）
     continuingEducationType: 'none',  // 继续教育类型
     continuingEducationMonths: 0,     // 学历继续教育月数
+    professionalCertMonth: 1,         // ✅ 新增：职业资格取得证书月份
     seriousIllness: 0,           // 大病医疗年度扣除
     housingLoanEnabled: false,    // 是否有住房贷款
     housingLoanMonths: 0,        // 房贷月数
@@ -74,17 +85,41 @@ export default function TaxCalculator() {
     elderlyShareAmount: 1500,    // 非独生子女分摊金额
   });
 
+  // ✅ 新增：其他收入状态
+  const [otherIncome, setOtherIncome] = useState<OtherIncome>({
+    laborIncome: 0,
+    royaltyIncome: 0,
+    franchiseIncome: 0,
+  });
+
+  // ✅ 新增：年度汇算输入状态
+  const [settlementInput, setSettlementInput] = useState<AnnualSettlementInput>({
+    annualSalary: 180000,
+    annualBonus: 30000,
+    otherIncome: { laborIncome: 0, royaltyIncome: 0, franchiseIncome: 0 },
+    socialInsurance: 30000,
+    specialDeductions: deductions,
+    prepaidTax: 15000,
+  });
+
   // PDF导出状态
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
+  // ✅ 新增：省份到基准城市的映射函数
+  const getBaseCity = (provinceId: string): string => {
+    return PROVINCE_TO_CITY[provinceId] || 'default';
+  };
+
   // Results
   const monthlyResult = useMemo(() => {
-    const social = calculateSocialInsurance(salary, selectedCity, customFundRate);
+    const cityKey = getBaseCity(selectedCity);
+    const social = calculateSocialInsurance(salary, cityKey, customFundRate);
     return calculateMonthlyTax(salary, social.totalPersonal, deductions);
   }, [salary, selectedCity, customFundRate, deductions]);
 
   const bonusResults = useMemo(() => {
-    const social = calculateSocialInsurance(salary, selectedCity, customFundRate);
+    const cityKey = getBaseCity(selectedCity);
+    const social = calculateSocialInsurance(salary, cityKey, customFundRate);
     const separate = calculateBonusSeparate(bonus);
     const combined = calculateBonusCombined(bonus, salary, social.totalPersonal, deductions);
     const trap = checkBonusTrap(bonus);
@@ -92,20 +127,40 @@ export default function TaxCalculator() {
   }, [bonus, salary, selectedCity, customFundRate, deductions]);
 
   const reverseResult = useMemo(() => {
-    const social = calculateSocialInsurance(targetNet, selectedCity, customFundRate);
+    const cityKey = getBaseCity(selectedCity);
+    const social = calculateSocialInsurance(targetNet, cityKey, customFundRate);
     // Rough estimate for social insurance based on target net
     return reverseGrossFromNet(targetNet, social.totalPersonal, deductions);
   }, [targetNet, selectedCity, customFundRate, deductions]);
 
   const socialResult = useMemo(() => {
-    return calculateSocialInsurance(salary, selectedCity, customFundRate);
+    const cityKey = getBaseCity(selectedCity);
+    return calculateSocialInsurance(salary, cityKey, customFundRate);
   }, [salary, selectedCity, customFundRate]);
 
   // 年度计算结果（每月明细）
   const annualResults = useMemo(() => {
-    const social = calculateSocialInsurance(salary, selectedCity, customFundRate);
+    const cityKey = getBaseCity(selectedCity);
+    const social = calculateSocialInsurance(salary, cityKey, customFundRate);
     return calculateAnnualTax(salary, social.totalPersonal, deductions);
   }, [salary, selectedCity, customFundRate, deductions]);
+
+  // ✅ 新增：其他收入预扣税额计算
+  const otherIncomeTax = useMemo(() => {
+    return {
+      laborTax: calculateLaborTax(otherIncome.laborIncome),
+      royaltyTax: calculateRoyaltyTax(otherIncome.royaltyIncome),
+      franchiseTax: calculateFranchiseTax(otherIncome.franchiseIncome),
+      totalTax: calculateLaborTax(otherIncome.laborIncome) + 
+                calculateRoyaltyTax(otherIncome.royaltyIncome) + 
+                calculateFranchiseTax(otherIncome.franchiseIncome),
+    };
+  }, [otherIncome]);
+
+  // ✅ 新增：年度汇算清缴结果
+  const settlementResult = useMemo(() => {
+    return calculateAnnualSettlement(settlementInput);
+  }, [settlementInput]);
 
   const chartData = useMemo(() => {
     return [
@@ -122,6 +177,7 @@ export default function TaxCalculator() {
     { id: 'social', label: t('tax.tabs.social'), icon: ShieldCheck },
     { id: 'reverse', label: t('tax.tabs.reverse'), icon: ArrowLeftRight },
     { id: 'annual', label: t('tax.tabs.annual'), icon: TrendingUp },
+    { id: 'settlement', label: t('tax.tabs.settlement'), icon: TrendingUp },
   ];
 
   // ✅ 新增：保存计算结果的方法
@@ -169,6 +225,9 @@ export default function TaxCalculator() {
         reverseResult,
         socialResult,
         annualResults, // 添加年度明细
+        otherIncome, // ✅ 新增：其他收入
+        otherIncomeTax, // ✅ 新增：其他收入预扣税额
+        settlementResult, // ✅ 新增：年度汇算清缴结果
         language,
       };
       generateTaxReportPdf(reportData);
@@ -220,7 +279,7 @@ export default function TaxCalculator() {
               className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-600/20"
             >
               <Save className="h-4 w-4" />
-              {language === 'zh' ? '保存记录' : 'Save'}
+              {t('tax.saveRecord')}
             </button>
           )}
         </div>
@@ -309,8 +368,10 @@ export default function TaxCalculator() {
                     onChange={(e) => setSelectedCity(e.target.value)}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-500 focus:bg-white"
                   >
-                    {Object.keys(SOCIAL_RATES).map(city => (
-                      <option key={city} value={city}>{t(`tax.city.${city}`)}</option>
+                    {getAllProvinces().map(province => (
+                      <option key={province.id} value={province.id}>
+                        {language === 'zh' ? province.name : province.nameEn}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -388,6 +449,28 @@ export default function TaxCalculator() {
                             }))}
                             className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-blue-500"
                           />
+                        </div>
+                      )}
+                      {/* ✅ 新增：职业资格月份选择 */}
+                      {deductions.continuingEducationType === 'professional' && (
+                        <div className="mt-2">
+                          <label className="mb-1 block text-[10px] text-slate-500">
+                            {t('tax.deduction.certMonth')} ({t('tax.deduction.certMonthHint')})
+                          </label>
+                          <select
+                            value={deductions.professionalCertMonth || 1}
+                            onChange={(e) => setDeductions(prev => ({ 
+                              ...prev, 
+                              professionalCertMonth: Number(e.target.value) 
+                            }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-blue-500"
+                          >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                              <option key={month} value={month}>
+                                {month}{language === 'zh' ? '月' : ''} ({t('tax.deduction.remainingMonths')}{language === 'zh' ? `${13 - month}个月` : `${13 - month} months`})
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       )}
                     </div>
@@ -542,6 +625,188 @@ housingRent: 1500
                         </div>
                       )}
                     </div>
+
+                    {/* ✅ 新增：其他收入输入区域（月度计算） */}
+                    {(activeTab === 'monthly' || activeTab === 'annual') && (
+                      <div className="mt-4 pt-4 border-t border-slate-200">
+                        <h4 className="mb-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          {t('tax.otherIncome.title')}
+                        </h4>
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="mb-1 block text-[10px] text-slate-600">{t('tax.otherIncome.labor')}</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={otherIncome.laborIncome}
+                                onChange={(e) => setOtherIncome(prev => ({ ...prev, laborIncome: Number(e.target.value) }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs outline-none focus:border-blue-500"
+                              />
+                              {otherIncome.laborIncome > 0 && (
+                                <p className="mt-1 text-[9px] text-rose-500">
+                                  {t('tax.otherIncome.prepaidTax')}: ¥{otherIncomeTax.laborTax.toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[10px] text-slate-600">{t('tax.otherIncome.royalty')}</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={otherIncome.royaltyIncome}
+                                onChange={(e) => setOtherIncome(prev => ({ ...prev, royaltyIncome: Number(e.target.value) }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs outline-none focus:border-blue-500"
+                              />
+                              {otherIncome.royaltyIncome > 0 && (
+                                <p className="mt-1 text-[9px] text-rose-500">
+                                  {t('tax.otherIncome.prepaidTax')}: ¥{otherIncomeTax.royaltyTax.toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[10px] text-slate-600">{t('tax.otherIncome.franchise')}</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={otherIncome.franchiseIncome}
+                                onChange={(e) => setOtherIncome(prev => ({ ...prev, franchiseIncome: Number(e.target.value) }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs outline-none focus:border-blue-500"
+                              />
+                              {otherIncome.franchiseIncome > 0 && (
+                                <p className="mt-1 text-[9px] text-rose-500">
+                                  {t('tax.otherIncome.prepaidTax')}: ¥{otherIncomeTax.franchiseTax.toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {otherIncomeTax.totalTax > 0 && (
+                            <div className="p-2 rounded-lg bg-amber-50 border border-amber-100">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-medium text-slate-600">{t('tax.otherIncome.totalPrepaid')}</span>
+                                <span className="font-bold text-amber-600">¥{otherIncomeTax.totalTax.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ✅ 新增：年度汇算清缴输入区域 */}
+              {activeTab === 'settlement' && (
+                <div className="pt-4 border-t">
+                  <h4 className="mb-4 text-sm font-bold text-slate-400 uppercase tracking-wider">
+                    {t('tax.settlement.title')}
+                  </h4>
+                  <div className="space-y-4">
+                    {/* 年度工资总额 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.settlement.annualSalary')}</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
+                        <input
+                          type="number"
+                          value={settlementInput.annualSalary}
+                          onChange={(e) => setSettlementInput(prev => ({ ...prev, annualSalary: Number(e.target.value) }))}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-4 text-sm outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 年终奖 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.settlement.bonusCombined')}</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
+                        <input
+                          type="number"
+                          value={settlementInput.annualBonus}
+                          onChange={(e) => setSettlementInput(prev => ({ ...prev, annualBonus: Number(e.target.value) }))}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-4 text-sm outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 其他收入 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.settlement.otherIncome')}</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <p className="mb-1 text-[10px] text-slate-400">{t('tax.otherIncome.labor')}</p>
+                          <input
+                            type="number"
+                            value={settlementInput.otherIncome.laborIncome}
+                            onChange={(e) => setSettlementInput(prev => ({
+                              ...prev,
+                              otherIncome: { ...prev.otherIncome, laborIncome: Number(e.target.value) }
+                            }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs outline-none focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <p className="mb-1 text-[10px] text-slate-400">{t('tax.otherIncome.royalty')}</p>
+                          <input
+                            type="number"
+                            value={settlementInput.otherIncome.royaltyIncome}
+                            onChange={(e) => setSettlementInput(prev => ({
+                              ...prev,
+                              otherIncome: { ...prev.otherIncome, royaltyIncome: Number(e.target.value) }
+                            }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs outline-none focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <p className="mb-1 text-[10px] text-slate-400">{t('tax.otherIncome.franchise')}</p>
+                          <input
+                            type="number"
+                            value={settlementInput.otherIncome.franchiseIncome}
+                            onChange={(e) => setSettlementInput(prev => ({
+                              ...prev,
+                              otherIncome: { ...prev.otherIncome, franchiseIncome: Number(e.target.value) }
+                            }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 年度社保 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.settlement.socialInsurance')}</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
+                        <input
+                          type="number"
+                          value={settlementInput.socialInsurance}
+                          onChange={(e) => setSettlementInput(prev => ({ ...prev, socialInsurance: Number(e.target.value) }))}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-4 text-sm outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 已预缴税额 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-600">{t('tax.settlement.prepaidTax')}</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
+                        <input
+                          type="number"
+                          value={settlementInput.prepaidTax}
+                          onChange={(e) => setSettlementInput(prev => ({ ...prev, prepaidTax: Number(e.target.value) }))}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-4 text-sm outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setSettlementInput(prev => ({ ...prev, specialDeductions: deductions }))}
+                      className="w-full mt-2 rounded-xl bg-blue-50 py-2 text-xs font-bold text-blue-600 hover:bg-blue-100 transition-colors"
+                    >
+                      {t('tax.settlement.applyDeductions')}
+                    </button>
                   </div>
                 </div>
               )}
@@ -616,17 +881,17 @@ housingRent: 1500
                     {/* 每月明细列表 */}
                     <div className="rounded-2xl border border-slate-200 overflow-hidden">
                       <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-                        <h4 className="font-bold text-slate-700">{language === 'zh' ? '每月税额明细' : 'Monthly Tax Breakdown'}</h4>
+                        <h4 className="font-bold text-slate-700">{t('tax.monthlyBreakdown.title')}</h4>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
-                              <th className="px-4 py-2 text-left font-medium text-slate-600">{language === 'zh' ? '月份' : 'Month'}</th>
-                              <th className="px-4 py-2 text-right font-medium text-slate-600">{language === 'zh' ? '应税所得' : 'Taxable'}</th>
-                              <th className="px-4 py-2 text-right font-medium text-slate-600">{language === 'zh' ? '本月个税' : 'Tax'}</th>
-                              <th className="px-4 py-2 text-right font-medium text-slate-600">{language === 'zh' ? '累计个税' : 'Cumulative'}</th>
-                              <th className="px-4 py-2 text-right font-medium text-slate-600">{language === 'zh' ? '税后收入' : 'Net'}</th>
+                              <th className="px-4 py-2 text-left font-medium text-slate-600">{t('tax.monthlyBreakdown.month')}</th>
+                              <th className="px-4 py-2 text-right font-medium text-slate-600">{t('tax.monthlyBreakdown.taxable')}</th>
+                              <th className="px-4 py-2 text-right font-medium text-slate-600">{t('tax.monthlyBreakdown.tax')}</th>
+                              <th className="px-4 py-2 text-right font-medium text-slate-600">{t('tax.monthlyBreakdown.cumulative')}</th>
+                              <th className="px-4 py-2 text-right font-medium text-slate-600">{t('tax.monthlyBreakdown.net')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -641,7 +906,7 @@ housingRent: 1500
                             ))}
                             {/* 合计行 */}
                             <tr className="bg-blue-50 font-bold">
-                              <td className="px-4 py-3 text-slate-700">{language === 'zh' ? '年度合计' : 'Annual Total'}</td>
+                              <td className="px-4 py-3 text-slate-700">{t('tax.monthlyBreakdown.annualTotal')}</td>
                               <td className="px-4 py-3 text-right text-slate-600">-</td>
                               <td className="px-4 py-3 text-right text-rose-500">¥{annualResults.reduce((sum, r) => sum + r.monthlyTax, 0).toLocaleString()}</td>
                               <td className="px-4 py-3 text-right text-slate-600">-</td>
@@ -785,6 +1050,102 @@ housingRent: 1500
                     </div>
                   </div>
                 )}
+
+{/* ✅ 新增：年度汇算清缴结果展示 */}
+                {activeTab === 'settlement' && (
+                  <div className="space-y-8">
+                    <div className="text-center">
+                      <p className="mb-1 text-sm font-medium text-slate-500">
+                        {t('tax.settlement.totalIncome')}
+                      </p>
+                      <h3 className="text-5xl font-black text-slate-900">
+                        ¥{settlementResult.totalIncome.toLocaleString()}
+                      </h3>
+                    </div>
+
+                    {/* 明细列表 */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-sm">
+                        <span className="font-medium text-slate-600">{t('tax.settlement.salaryTaxable')}</span>
+                        <span className="font-bold text-slate-900">¥{settlementResult.salaryTaxable.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-sm">
+                        <span className="font-medium text-slate-600">{t('tax.settlement.bonusTaxable')}</span>
+                        <span className="font-bold text-slate-900">¥{settlementResult.bonusTaxable.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-sm">
+                        <span className="font-medium text-slate-600">{t('tax.settlement.otherIncomeTaxable')}</span>
+                        <span className="font-bold text-slate-900">¥{settlementResult.otherIncomeTaxable.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-sm">
+                        <span className="font-medium text-slate-600">{t('tax.settlement.socialDeduction')}</span>
+                        <span className="font-bold text-slate-900">¥{settlementResult.socialInsurance.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-sm">
+                        <span className="font-medium text-slate-600">{t('tax.settlement.specialDeduction')}</span>
+                        <span className="font-bold text-slate-900">¥{settlementResult.annualDeduction.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-sm">
+                        <span className="font-medium text-slate-600">{t('tax.settlement.threshold')}</span>
+                        <span className="font-bold text-slate-900">¥{settlementResult.threshold.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 text-sm border border-amber-200">
+                        <span className="font-medium text-amber-800">{t('tax.settlement.annualTaxable')}</span>
+                        <span className="font-bold text-amber-900">¥{settlementResult.taxableIncome.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-sm">
+                        <span className="font-medium text-slate-600">{t('tax.rate')}</span>
+                        <span className="font-bold text-slate-900">{(settlementResult.taxRate * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+
+                    {/* 年度应纳税额 */}
+                    <div className="rounded-2xl bg-rose-50 p-6 border border-rose-200">
+                      <div className="text-center">
+                        <p className="mb-1 text-sm font-medium text-rose-600">{t('tax.settlement.annualTax')}</p>
+                        <h4 className="text-4xl font-black text-rose-600">¥{settlementResult.annualTax.toLocaleString()}</h4>
+                      </div>
+                    </div>
+
+                    {/* 已预缴和应补/应退 */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-2xl bg-slate-100 p-4 text-center">
+                        <p className="mb-1 text-xs font-medium text-slate-500">{t('tax.settlement.prepaidTax')}</p>
+                        <h4 className="text-2xl font-black text-slate-700">¥{settlementResult.prepaidTax.toLocaleString()}</h4>
+                      </div>
+                      <div className={cn(
+                        "rounded-2xl p-4 text-center",
+                        settlementResult.refundOrPay >= 0 
+                          ? "bg-red-50 border-2 border-red-200" 
+                          : "bg-green-50 border-2 border-green-200"
+                      )}>
+                        <p className="mb-1 text-xs font-medium text-slate-500">
+                          {settlementResult.refundOrPay >= 0 
+                            ? t('tax.settlement.taxToPay')
+                            : t('tax.settlement.taxRefund')
+                          }
+                        </p>
+                        <h4 className={cn(
+                          "text-2xl font-black",
+                          settlementResult.refundOrPay >= 0 ? "text-red-600" : "text-green-600"
+                        )}>
+                          ¥{Math.abs(settlementResult.refundOrPay).toLocaleString()}
+                        </h4>
+                      </div>
+                    </div>
+
+                    {/* 提示 */}
+                    <div className="flex items-start gap-3 rounded-2xl bg-blue-50 p-4 text-sm text-blue-800">
+                      <Info className="h-5 w-5 shrink-0" />
+                      <p>
+                        {settlementResult.refundOrPay >= 0
+                          ? t('tax.settlement.payHint')
+                          : t('tax.settlement.refundHint')
+           }
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Optimization Advice Card */}
@@ -824,7 +1185,7 @@ housingRent: 1500
         <div className="mt-12">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
             <History className="h-6 w-6 text-blue-600" />
-            {language === 'zh' ? '历史计算记录' : 'Calculation History'}
+            {t('tax.history.title')}
           </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {calculations.map(calc => (
@@ -834,23 +1195,23 @@ housingRent: 1500
                     <p className="font-semibold text-gray-900">{calc.income_type}</p>
                     <div className="mt-2 space-y-1 text-sm">
                       <p className="text-gray-600">
-                        {language === 'zh' ? '税前收入' : 'Gross'}: ¥{calc.gross_income.toLocaleString()}
+                        {t('tax.history.gross')}: ¥{calc.gross_income.toLocaleString()}
                       </p>
                       <p className="text-gray-600">
-                        {language === 'zh' ? '扣除额' : 'Deductions'}: ¥{calc.deductions.toLocaleString()}
+                        {t('tax.history.deductions')}: ¥{calc.deductions.toLocaleString()}
                       </p>
                       <p className="text-orange-600 font-medium">
-                        {language === 'zh' ? '税费' : 'Tax'}: ¥{calc.tax_amount.toLocaleString()}
+                        {t('tax.history.tax')}: ¥{calc.tax_amount.toLocaleString()}
                       </p>
                       <p className="text-green-600 font-bold">
-                        {language === 'zh' ? '税后收入' : 'Net Income'}: ¥{calc.net_income.toLocaleString()}
+                        {t('tax.history.netIncome')}: ¥{calc.net_income.toLocaleString()}
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => deleteCalculation(calc.id)}
                     className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                    title={language === 'zh' ? '删除' : 'Delete'}
+                    title={t('tax.history.delete')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

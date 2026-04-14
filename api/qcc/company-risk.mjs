@@ -216,7 +216,7 @@ const parseRiskData = (result, dataType) => {
                 '开庭日期': 'trialDate',
                 '原告': 'plaintiff',
                 '被告': 'defendant',
-                '当事人': 'parties',
+                '当事人': 'parties',  // ✅ 保留原始当事人JSON字符串
                 '法院': 'court',
                 '案件状态': 'caseStatus',
                 '执行标的': 'amount',
@@ -234,6 +234,11 @@ const parseRiskData = (result, dataType) => {
 
               const mappedKey = keyMap[header] || header;
               item[mappedKey] = cells[index];
+
+              // ✅ 同时保留原始中文字段（用于后续解析）
+              if (header === '当事人') {
+                item['当事人'] = cells[index];  // 保留原始字段
+              }
             });
 
             // 添加到列表
@@ -442,32 +447,125 @@ export default async function handler(req, res) {
     const caseFilingData = parseRiskData(caseFilingResult, '立案信息');
     console.log(`[QCC API] 立案信息数据:`, JSON.stringify(caseFilingData.slice(0, 2), null, 2));
 
-    const laborDisputes = caseFilingData.filter((item) => {
-      const caseType = item.caseType || item.caseReason || item.案由 || '';
-      return caseType.includes('劳动') || caseType.includes('工资') ||
-             caseType.includes('工伤') || caseType.includes('社保') ||
-             caseType.includes('劳动合同') || caseType.includes('经济补偿');
-    }).map((item) => ({
-      caseNo: item.caseNo || item.caseNumber || item.案号 || '-',
-      caseType: item.caseType || item.caseReason || item.案由 || '劳动争议',
-      filingDate: item.filingDate || item.立案日期 || '-',
-      plaintiff: item.plaintiff || item.原告 || '-',
-      defendant: companyName,
-      caseStatus: item.caseStatus || item.案件状态 || '-',
-      amount: item.amount || item.标的额 || '-',
-      summary: item.summary || '劳动争议案件',
-    }));
+    // ✅ 辅助函数：解析当事人JSON字符串
+    const parseParties = (partiesStr) => {
+      if (!partiesStr) return { plaintiff: '-', defendant: '-' };
 
+      try {
+        // 尝试解析JSON
+        const parties = typeof partiesStr === 'string' ? JSON.parse(partiesStr) : partiesStr;
+
+        // 提取原告和被告
+        const plaintiff = parties['原告']?.join('、') || parties.plaintiff || '-';
+        const defendant = parties['被告']?.join('、') || parties.defendant || '-';
+
+        return { plaintiff, defendant };
+      } catch {
+        // JSON解析失败，返回原始字符串
+        return { plaintiff: partiesStr, defendant: '-' };
+      }
+    };
+
+    // ✅ 辅助函数：判断是否为劳动纠纷
+    const isLaborDispute = (caseReason) => {
+      if (!caseReason) return false;
+      const keywords = [
+        '劳动', '工资', '工伤', '社保', '劳动合同', '经济补偿',
+        '劳务', '加班', '休假', '辞退', '解除劳动合同',
+        '劳动争议', '人事争议', '工伤保险', '生育保险',
+        '医疗保险', '养老保险', '失业保险', '住房公积金'
+      ];
+      return keywords.some(keyword => caseReason.includes(keyword));
+    };
+
+    const laborDisputes = caseFilingData.filter((item) => {
+      const caseReason = item.caseType || item.caseReason || item.案由 || '';
+      const isLabor = isLaborDispute(caseReason);
+      console.log(`[QCC API] 检查立案信息: 案号=${item.caseNo || item.案号}, 案由=${caseReason}, 是否劳动纠纷=${isLabor}`);
+      return isLabor;
+    }).map((item) => {
+      const { plaintiff, defendant } = parseParties(item.parties || item.当事人);
+
+      console.log(`[QCC API] ✅ 立案信息-劳动纠纷: 案号=${item.caseNo || item.案号}, 案由=${item.caseReason || item.案由}`);
+
+      return {
+        caseNo: item.caseNo || item.caseNumber || item.案号 || '-',
+        caseType: item.caseType || item.caseReason || item.案由 || '劳动争议',
+        filingDate: item.filingDate || item.立案日期 || '-',
+        plaintiff: plaintiff,
+        defendant: defendant === '-' ? companyName : defendant,
+        caseStatus: item.caseStatus || item.案件状态 || '-',
+        amount: item.amount || item.标的额 || '-',
+        summary: `${item.caseReason || item.案由 || '劳动争议'}案件`,  // ✅ 使用案由生成摘要
+      };
+    });
+
+    // ✅ 从司法文书数据中也提取劳动纠纷案件（包含裁判结果）
     const judicialRisks = parseRiskData(judicialDocsResult, '司法文书');
+    console.log(`[QCC API] 司法文书数据 (${judicialRisks.length}条):`, JSON.stringify(judicialRisks.slice(0, 2), null, 2));
+
+    const laborDisputesFromJudicial = judicialRisks.filter((item) => {
+      const caseReason = item.caseReason || item.案由 || '';
+      const isLabor = isLaborDispute(caseReason);
+      console.log(`[QCC API] 检查案件: 案号=${item.caseNo || item.案号}, 案由=${caseReason}, 是否劳动纠纷=${isLabor}`);
+      return isLabor;
+    }).map((item) => {
+      const { plaintiff, defendant } = parseParties(item.parties || item.当事人);
+
+      console.log(`[QCC API] ✅ 司法文书-劳动纠纷: 案号=${item.caseNo || item.案号}`);
+      console.log(`  案由=${item.caseReason || item.案由}`);
+      console.log(`  原告=${plaintiff}, 被告=${defendant}`);
+      console.log(`  裁判结果=${item.judgmentResult || item.裁判结果 || '(无)'}`);
+      console.log(`  裁判日期=${item.judgmentDate || item.裁判日期 || '(无)'}`);
+
+      return {
+        caseNo: item.caseNo || item.caseNumber || item.案号 || '-',
+        caseType: item.caseType || item.caseReason || item.案由 || '劳动争议',
+        filingDate: item.filingDate || item.立案日期 || '-',
+        plaintiff: plaintiff,
+        defendant: defendant === '-' ? companyName : defendant,
+        caseStatus: item.caseStatus || item.案件状态 || '-',
+        amount: item.amount || item.标的额 || '-',
+        summary: `${item.caseReason || item.案由 || '劳动争议'}案件`,
+        judgmentResult: item.judgmentResult || item.裁判结果 || '-',
+        judgmentDate: item.judgmentDate || item.裁判日期 || '-',
+      };
+    });
+
+    console.log(`[QCC API] 从司法文书提取的劳动纠纷: ${laborDisputesFromJudicial.length}条`);
+
+    // ✅ 合并立案信息和司法文书的劳动纠纷（去重，优先使用司法文书数据）
+    const allLaborDisputes = [...laborDisputesFromJudicial];
+    console.log(`[QCC API] 开始合并，初始allLaborDisputes=${allLaborDisputes.length}条`);
+
+    laborDisputes.forEach((dispute) => {
+      console.log(`[QCC API] 检查立案信息: 案号=${dispute.caseNo}, 原告=${dispute.plaintiff}`);
+      // 如果案号不在司法文书中，添加立案信息
+      const exists = allLaborDisputes.some(d => d.caseNo === dispute.caseNo);
+      if (!exists) {
+        console.log(`[QCC API] 添加立案信息: ${dispute.caseNo}`);
+        allLaborDisputes.push(dispute);
+      } else {
+        console.log(`[QCC API] 跳过重复案号: ${dispute.caseNo}`);
+      }
+    });
+
+    console.log(`[QCC API] 劳动纠纷统计: 立案信息=${laborDisputes.length}, 司法文书=${laborDisputesFromJudicial.length}, 合并后=${allLaborDisputes.length}`);
+
+    // ✅ 其他司法风险（非劳动纠纷）
+    const otherJudicialRisks = judicialRisks.filter((item) => {
+      const caseReason = item.caseReason || item.案由 || '';
+      return !isLaborDispute(caseReason);
+    });
     const businessAbnormals = parseRiskData(businessExceptionResult, '经营异常');
     const dishonestData = parseRiskData(dishonestResult, '失信信息');
 
-    console.log(`[QCC API] 风险统计: 劳动纠纷=${laborDisputes.length}, 司法风险=${judicialRisks.length}, 经营异常=${businessAbnormals.length}`);
+    console.log(`[QCC API] 风险统计: 劳动纠纷=${allLaborDisputes.length}, 其他司法风险=${otherJudicialRisks.length}, 经营异常=${businessAbnormals.length}`);
     const hasDishonest = dishonestData.length > 0;
 
     // 计算风险等级
-    const laborDisputeCount = laborDisputes.length;
-    const judicialRiskCount = judicialRisks.length;
+    const laborDisputeCount = allLaborDisputes.length;
+    const judicialRiskCount = otherJudicialRisks.length;
     const abnormalCount = businessAbnormals.length;
 
     let overallRiskLevel = 'low';
@@ -491,8 +589,8 @@ export default async function handler(req, res) {
         businessType: companyData.businessType || companyData.企业类型 || '-',
         insuredCount: companyData.insuredCount || companyData.参保人数 || '-',
       },
-      laborDisputes,
-      judicialRisks: judicialRisks.slice(0, 5), // 限制数量
+      laborDisputes: allLaborDisputes,
+      judicialRisks: otherJudicialRisks.slice(0, 5), // 其他司法风险（非劳动纠纷）
       businessAbnormals: businessAbnormals.slice(0, 5),
       riskSummary: {
         laborDisputeCount,
